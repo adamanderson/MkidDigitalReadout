@@ -254,17 +254,23 @@ class HighTemplar(QMainWindow):
             if color is None:
                 continue
             if color=='red' or color==RoachStateMachine.UNDEFINED:
-                self.commandButtons[roachArg][com].setPalette(self.redButtonPalette)
+                #self.commandButtons[roachArg][com].setPalette(self.redButtonPalette)
+                self.commandButtons[roachArg][com].setStyleSheet("QWidget {background-color: darkRed}")
             elif color=='cyan' or color==RoachStateMachine.INPROGRESS:
-                self.commandButtons[roachArg][com].setPalette(self.cyanButtonPalette)
+                #self.commandButtons[roachArg][com].setPalette(self.cyanButtonPalette)
+                self.commandButtons[roachArg][com].setStyleSheet("QWidget {background-color: cyan}")
             elif color=='green' or color==RoachStateMachine.COMPLETED:
-                self.commandButtons[roachArg][com].setPalette(self.greenButtonPalette)
+                #self.commandButtons[roachArg][com].setPalette(self.greenButtonPalette)
+                self.commandButtons[roachArg][com].setStyleSheet("QWidget {background-color: green}")
             elif color=='error' or color==RoachStateMachine.ERROR:
-                self.commandButtons[roachArg][com].setPalette(self.errorButtonPalette)
+                #self.commandButtons[roachArg][com].setPalette(self.errorButtonPalette)
+                self.commandButtons[roachArg][com].setStyleSheet("QWidget {background-color: red}")
             elif color=='blue':
-                self.commandButtons[roachArg][com].setPalette(self.blueButtonPalette)
+                #self.commandButtons[roachArg][com].setPalette(self.blueButtonPalette)
+                self.commandButtons[roachArg][com].setStyleSheet("QWidget {background-color: blue}")
             elif color=='grey' or color=='gray':
-                self.commandButtons[roachArg][com].setPalette(self.grayButtonPalette)
+                #self.commandButtons[roachArg][com].setPalette(self.grayButtonPalette)
+                self.commandButtons[roachArg][com].setStyleSheet("QWidget {background-color: gray}")
 
     def commandButtonRightClicked(self, roachNums, command, source, point):
         """
