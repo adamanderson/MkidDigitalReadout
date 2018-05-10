@@ -1,7 +1,7 @@
 """
 A replacement for WideAna.pro for those who prefer python to idl.
 
-Usage:  python WideAna.py test/ucsb_100mK_24db_1.txt 
+Usage: python WideAna.py filename feedline#
 
 Read the input file.
 
@@ -321,25 +321,27 @@ class WideAna(QMainWindow):
 
     def writeToGoodFile(self):
         gf = open(self.goodFile,'wb')
-        id = (self.flNum-1)*2000
+        #id = (self.flNum-1)*2000
+        resId = self.flNum*10000
         for index in range(len(self.goodPeakMask)):
             if self.goodPeakMask[index]:
-                line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])
+                line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
                 gf.write(line)
-                id += 1
+                resId += 1
             elif self.badPeakMask[index]:
-                id += 1
+                resId += 1
         gf.close()
 
     def writeToAllFile(self):
         af = open(self.allFile,'wb')
-        id = (self.flNum-1)*2000
+        #id = (self.flNum-1)*2000
+        resId = self.flNum*10000
         print len(np.where(self.goodPeakMask==1)[0]), len(np.where(self.badPeakMask==1)[0])
         for index in range(len(self.goodPeakMask)):
             if self.goodPeakMask[index] or self.badPeakMask[index]:
-                line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])
+                line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
                 af.write(line)
-                id += 1
+                resId += 1
         af.close()
 
     # deal with zooming and plotting one segment
@@ -393,8 +395,8 @@ class WideAna(QMainWindow):
             for x in self.wsf.x[self.goodPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='g')
-                    self.axes.axvline(x=x+0.00025,color='g',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00025,color='g',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x+0.00010,color='g',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-0.00010,color='g',linestyle='-.',linewidth=0.5)
             for c in self.wsf.x[self.collMask]:
                 if c > self.xMin and c < self.xMax:
                     self.axes.axvline(x=c,color='g')
@@ -402,8 +404,8 @@ class WideAna(QMainWindow):
             for x in self.wsf.x[self.badPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='r')
-                    self.axes.axvline(x=x+0.00025,color='r',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00025,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x+0.00010,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-0.00010,color='r',linestyle='-.',linewidth=0.5)
             
             self.axes.set_xlim((self.xMin,self.xMax))
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
@@ -435,12 +437,21 @@ def main(initialFile=None, flNum=None):
 
 if __name__ == "__main__":
     initialFile = None
-    if len(sys.argv) > 2:
+    try: 
         initialFileName = sys.argv[1]
-        mdd = os.environ['MKID_DATA_DIR']
-        initialFile = os.path.join(mdd,initialFileName)
-        flNum = int(sys.argv[2])
-    else:
-        print "need to specify a filename located in MKID_DATA_DIR, and a feedline number"
+        initialFile = initialFileName
+        if not os.path.isfile(initialFile):
+            mdd = os.environ['MKID_DATA_DIR']
+            initialFile = os.path.join(mdd,initialFileName)
+    except:
+        print "Can not find",initialFile
+        exit()
+    try: flNum = int(sys.argv[2])
+    except:
+        print "Usage: python WideAna.py filename feedline#"
         exit()
     main(initialFile=initialFile, flNum=flNum)
+
+    
+    
+    
