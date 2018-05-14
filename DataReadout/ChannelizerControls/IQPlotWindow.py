@@ -3,7 +3,7 @@ from PyQt4 import QtGui, uic
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
-
+from H5IO import H5Writer
 dq = deque()
 
 class IQPlotWindow(QtGui.QMainWindow):
@@ -220,10 +220,14 @@ class Writer(QThread):
             self.writeData = False
 
     def run(self):
+        h5Writer = H5Writer(".")
         while self.keepAlive:
             while len(dq) > 0:
                 data = dq.popleft()
                 print "Writer.run:  got data to write to prefix =",data['fileNamePrefix']
+                fileNamePrefix = data['fileNamePrefix']
+                recentIQData = data['recentIQData']
+                hvWriter.write(fileNamePrefix, recentIQData)
             time.sleep(1.0)
         print "Writer:  all done"
     
