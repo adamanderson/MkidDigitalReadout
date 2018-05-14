@@ -593,7 +593,8 @@ class Roach2Controls:
                 #print 'To Write Str Length: ', str(len(toWriteStr))
                 #print iqList.dtype
                 #print iqList
-                print 'bram dump # ' + str(i)
+                print 'bram dump # ' + str(i),'\r',
+                sys.stdout.flush()
             while(sending_data):
                 sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
             self.fpga.blindwrite(self.params['lutBramAddr_reg'],toWriteStr,0)
@@ -1204,7 +1205,8 @@ class Roach2Controls:
 
         self.fpga.write_int(self.params['chanSelLoad_reg'],0) #stop loading
         
-        if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
+        if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)+'\r',
+        sys.stdout.flush()
     
     #def freqChannelToStreamChannel(self, freqCh=None):
     def getStreamChannelFromFreqChannel(self,freqCh=None):
