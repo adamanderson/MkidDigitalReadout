@@ -90,8 +90,7 @@ import scipy.special
 import casperfpga
 import socket
 import binascii
-#from Utils.binTools import castBin  # part of SDR
-from MkidDigitalReadout.DataReadout.ChannelizerControls.lib.binTools import castBin
+from Utils.binTools import castBin  # part of SDR
 from readDict import readDict       #Part of the ARCONS-pipeline/util
 #from initialBeammap import xyPack,xyUnpack
 
