@@ -3,7 +3,8 @@ from PyQt4 import QtGui, uic
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
-from H5IO import H5Writer
+import H5IO
+reload(H5IO)
 dq = deque()
 
 class IQPlotWindow(QtGui.QMainWindow):
@@ -96,9 +97,11 @@ class IQPlotWindow(QtGui.QMainWindow):
         if self.writeDataState.text() == "Writing Data":
             self.writeDataState.setText("Paused Data Writing")
             self.writeDataState.setStyleSheet(ssColor("lightPink"))
+            self.writeData = False
         else:
             self.writeDataState.setText("Writing Data")
             self.writeDataState.setStyleSheet(ssColor("lightGreen"))
+            self.writeData = True
         self.signalToWriter.emit(self.writeDataState.text())
 
     def iFreqChanged(self, index):
@@ -119,12 +122,12 @@ class IQPlotWindow(QtGui.QMainWindow):
             self.callIQTakeAvgTime.setText(dText)
         if "iqOnRes" in dict.keys():
             # actual data collected!
-            iqOnRes = dict['iqOnRes']
             self.recentIQData = dict['iqOnRes']
-            dq.append({
-                    "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
-                    "recentIQData":self.recentIQData
-                      })
+            if self.writeData:
+                dq.append({
+                        "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
+                        "recentIQData":self.recentIQData
+                        })
             self.updatePlots()
 
     def whatToPlotChanged(self, index):
@@ -214,23 +217,19 @@ class Writer(QThread):
         print "Writer.getSignal:  value =",value
         if value == "Stop":
             self.keepAlive = False
-        elif value == "Writing Data":
-            self.writeData = True
-        elif value == "Paused Data Writing":
-            self.writeData = False
-
     def run(self):
-        h5Writer = H5Writer(".")
+        h5Writer = H5IO.H5Writer()
         while self.keepAlive:
             while len(dq) > 0:
                 data = dq.popleft()
-                print "Writer.run:  got data to write to prefix =",data['fileNamePrefix']
                 fileNamePrefix = data['fileNamePrefix']
                 recentIQData = data['recentIQData']
-                hvWriter.write(fileNamePrefix, recentIQData)
+                h5Writer.write(recentIQData,fileNamePrefix)
             time.sleep(1.0)
+        print "Writer:  call h5Writer.close()"
+        h5Writer.close()
         print "Writer:  all done"
-    
+
 def ssColor(color):
     retval = "QWidget {background-color:"
     retval += color

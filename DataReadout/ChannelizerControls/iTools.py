@@ -6,10 +6,18 @@ If you add a function here, "reload(iTools)" is your friend.
 Sample use from iPython:
 
 > import iTools
-> rc = setup(100, 'chris.cfg')
+> rc = iTools.setup(100, 'chris.cfg')
+> iTools.plotIQ(rc)
+
+and if you make changes to code:
+
+reload(iTools)
+
 # now rc is a handle to a RoachConnection.
 > avgIQData = rc.roachController.takeAvgIQData(100)
 # This is a dictionary of 'I' and 'Q' of the 100 measurements at each frequency.
+
+
 """
 iToolsVersion = 0.2
 
