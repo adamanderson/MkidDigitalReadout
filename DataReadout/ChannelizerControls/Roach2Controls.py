@@ -91,7 +91,7 @@ import casperfpga
 import socket
 import binascii
 from Utils.binTools import castBin  # part of SDR
-from readDict import readDict       #Part of the ARCONS-pipeline/util
+from MkidDigitalReadout.utils.readDict import readDict
 #from initialBeammap import xyPack,xyUnpack
 
 class Roach2Controls:
