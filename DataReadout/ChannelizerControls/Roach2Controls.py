@@ -90,8 +90,8 @@ import scipy.special
 import casperfpga
 import socket
 import binascii
-from MkidDigitalReadout.utils.binTools import castBin
-from MkidDigitalReadout.utils.readDict import readDict
+from binTools import castBin
+from readDict import readDict
 #from initialBeammap import xyPack,xyUnpack
 
 class Roach2Controls:
