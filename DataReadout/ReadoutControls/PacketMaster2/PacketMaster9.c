@@ -29,22 +29,22 @@
 #define _POSIX_C_SOURCE 200809L
 #define BUFLEN 1500
 #define PORT 50000
-#define XPIX 140
-#define YPIX 145
-#define NROACH 20
 #define SHAREDBUF 536870912
 #define TSOFFS 1514764800
+#define STRBUF 80
+//#define SNINTTIME 20
 
 
 #define handle_error_en(en, msg) \
         do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
 
 // global semaphores for locking shared memory.  sem0 = rptr1, sem1 = rptr2 
-static sem_t sem[2];
+static sem_t sem[3];
+static sem_t quitSem; //semaphore for quit condition
 
 //#define LOGPATH "/mnt/data0/logs/"
 
-// compile with gcc -Wall -Wextra -o PacketMaster6 PacketMaster6.c -I. -lm -lrt -lpthread -O3
+// compile with gcc -Wall -Wextra -o PacketMaster9 PacketMaster9.c -I. -lm -lrt -lpthread -O3
 
 struct datapacket {
     unsigned int baseline:17;
@@ -64,6 +64,16 @@ struct hdrpacket {
 struct readoutstream {
     uint64_t unread;
     char data[SHAREDBUF];
+    int useNuller;
+    int nRoach;
+};
+
+struct cfgParams {
+    char ramdiskPath[STRBUF];
+    int nXPix;
+    int nYPix;
+    int useNuller;
+    int nRoach;
 };
 
 void diep(char *s)
@@ -140,7 +150,7 @@ struct readoutstream *OpenShared(char buf[40])
     return(rptr);    
 }
 
-void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint64_t frame[NROACH])
+void ParsePacket( uint16_t **image, char *packet, unsigned int l, int nXPix, int nYPix)
 {
     uint64_t i;
     //struct hdrpacket *hdr;
@@ -176,15 +186,366 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
        swp1 = __bswap_64(swp);
        data = (struct datapacket *) (&swp1);
        //image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
+       //printf("x, y: %d, %d\n", data->xcoord, data->ycoord);
+       //printf("image at x, y: %d, %d\n", image[0][0]);
        
-       if( data->xcoord >= XPIX || data->ycoord >= YPIX ) continue;
+       if( data->xcoord >= nXPix || data->ycoord >= nYPix ) continue;
        image[data->xcoord][data->ycoord]++;
       
     }
 
 }
 
-void* Cuber()
+void ParsePacketSN( uint16_t *image, char *packet, unsigned int l, int nXPix, int nYPix)
+{
+    uint64_t i;
+    //struct hdrpacket *hdr;
+    struct datapacket *data;
+    //uint64_t starttime;
+    //uint16_t curframe;
+    //char curroach;
+    uint64_t swp,swp1;
+
+    // pull out header information from the first packet
+    // swp = *((uint64_t *) (&packet[0]));
+    // swp1 = __bswap_64(swp);
+    // hdr = (struct hdrpacket *) (&swp1);             
+
+    // starttime = hdr->timestamp;
+    // curframe = hdr->frame;
+    // curroach = hdr->roach;
+        
+    // check for missed frames and print an error if we got the wrong frame number
+/*
+    if( frame[curroach] != curframe) {
+        printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
+        frame[curroach] = (frame[curroach]+1)%4096;
+    }
+    else {
+        frame[curroach] = (frame[curroach]+1)%4096;
+    }
+*/
+
+    for(i=1;i<l/8;i++) {
+       
+       swp = *((uint64_t *) (&packet[i*8]));
+       swp1 = __bswap_64(swp);
+       data = (struct datapacket *) (&swp1);
+       //image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
+       
+       if( data->xcoord >= nXPix || data->ycoord >= nYPix ) continue;
+       (*(image + (data->ycoord)*nXPix + data->xcoord))++; //Rows are stored sequentially in image array
+      
+    }
+
+}
+
+void *Nuller(void *prms)
+{
+    int64_t br,i,j,ret;
+    char data[1024];
+    char *olddata;
+    char packet[808*16];
+    time_t s,olds;  // Seconds
+    struct timespec startSpec;
+    struct timespec stopSpec;
+    struct timeval tv;
+    unsigned long long sysTs;
+    uint64_t nsElapsed;
+    FILE *wp;
+    char outfile[160];
+    uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
+    uint64_t pcount = 0;
+    struct hdrpacket *hdr;
+    uint64_t swp,swp1;
+    struct readoutstream *rptr;
+    uint64_t pstart;
+
+    char *takeImgSemName = "/speckNullTakeImg";
+    char *doneImgSemName = "/speckNullDoneImg";
+    sem_t *takeImgSem;
+    sem_t *doneImgSem;
+    char *imgShmName = "/speckNullImgBuff";
+    char *tsShmName = "/speckNullTimestamp";
+    char *intTimeShmName = "/speckNullIntTime";
+    uint16_t *imgBuffPtr;
+    uint64_t *startTsPtr;
+    uint64_t *intTimePtr;
+    uint64_t startTimestamp;
+    uint64_t integrationTime;
+    uint64_t curTs;
+    uint16_t *boardNums;
+    uint16_t curRoachInd;
+    uint32_t doneIntegrating;
+    uint32_t doneIntMask; //each place value corresponds to a roach board
+    int takingImg = 0;
+    int fd;
+    int semVal;
+    struct cfgParams *params;
+
+    ret = MaximizePriority(8);
+    printf("Nuller online.\n");
+
+    params = (struct cfgParams*)prms; //cast param struct
+    doneIntMask = (1<<(params->nRoach))-1;
+    // open shared memory block 3 for photon data
+    rptr = OpenShared("/roachstream3");
+        
+    olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
+    
+    memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
+    memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
+    memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
+    boardNums = calloc(params->nRoach, sizeof(uint16_t));
+
+    //FILE *timeFile = fopen("timetest.txt", "w");
+    
+    //sem_unlink(takeImgSemName);
+    //sem_unlink(doneImgSemName);
+    
+    takeImgSem = sem_open(takeImgSemName, O_CREAT, S_IRUSR|S_IWUSR, 0);
+    doneImgSem = sem_open(doneImgSemName, O_CREAT, S_IRUSR|S_IWUSR, 0);
+    
+    if((takeImgSem==SEM_FAILED)||(doneImgSem==SEM_FAILED))
+        printf("Semaphore creation failed: %s\n", strerror(errno));
+        
+    while(sem_trywait(takeImgSem)==0) //initialize semaphores to 0
+    {
+        sem_getvalue(takeImgSem, &semVal);
+        printf("Init takeImgSem Value: %d\n", semVal);
+
+    }
+    while(sem_trywait(doneImgSem)==0); 
+    
+    fd = shm_open(imgShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if (fd == -1) { 
+        perror("shm_open");  /* something went wrong */
+        exit(1);             
+    }
+    
+    if (ftruncate(fd, sizeof(uint16_t)*params->nXPix*params->nYPix) == -1) { 
+        perror("ftruncate");  /* something went wrong */
+        exit(1);               
+    }
+  
+    imgBuffPtr = mmap(NULL, sizeof(uint16_t)*params->nXPix*params->nYPix, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (imgBuffPtr == MAP_FAILED) { 
+        perror("mmap");  /* something went wrong */
+        exit(1);            
+    }    
+    
+    close(fd);
+    
+    fd = shm_open(tsShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if (fd == -1) { 
+        perror("shm_open");  /* something went wrong */
+        exit(1);             
+    }
+    
+    if (ftruncate(fd, sizeof(uint64_t)) == -1) { 
+        perror("ftruncate");  /* something went wrong */
+        exit(1);               
+    }
+  
+    startTsPtr = mmap(NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (startTsPtr == MAP_FAILED) { 
+        perror("mmap");  /* something went wrong */
+        exit(1);            
+    }    
+    
+    close(fd);
+
+    fd = shm_open(intTimeShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if (fd == -1) { 
+        perror("shm_open");  /* something went wrong */
+        exit(1);             
+    }
+    
+    if (ftruncate(fd, sizeof(uint64_t)) == -1) { 
+        perror("ftruncate");  /* something went wrong */
+        exit(1);               
+    }
+  
+    intTimePtr = mmap(NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (intTimePtr == MAP_FAILED) { 
+        perror("mmap");  /* something went wrong */
+        exit(1);            
+    }    
+    
+    close(fd);
+    
+    printf("Nuller done initializing\n");
+
+    int whileLoopIters = 0;
+    while (sem_trywait(&quitSem) == -1)
+    {
+       if(takingImg)
+          whileLoopIters++;
+       // ead in new data and parse it
+       sem_wait(&sem[2]);        
+       br = rptr->unread;
+       if( br%8 != 0 ) printf("Misalign in Nuller - %d\n",(int)br); 
+	   	    
+       if( br > 0) {               
+          // we may be in the middle of a packet so put together a full packet from old data and new data
+          // and only parse when the packet is complete
+
+          // append current data to existing data if old data is present
+          // NOTE !!!  olddata must start with a packet header
+          if( oldbr > 0 ) {
+             memmove(&olddata[oldbr],rptr->data,br);
+             oldbr+=br;
+             rptr->unread = 0;
+             if (oldbr > SHAREDBUF-2000) {
+                printf("oldbr = %d!  Dumping data!\n",(int)oldbr); fflush(stdout);
+                br = 0;
+                oldbr=0;          
+             }
+          } 
+          else {
+             memmove(olddata,rptr->data,br);
+             oldbr=br;          
+             rptr->unread = 0;     
+          }
+       }
+       sem_post(&sem[2]);  
+
+
+       // if there is data waiting, process it
+       pstart = 0;
+       int forLoopIters = 0;
+       if( oldbr >= 808 ) {       
+          // search the available data for a packet boundary
+          //printf("oldbr %d\n", oldbr); fflush(stdout);
+          //printf("Start Parse\n"); fflush(stdout);
+          for( i=1; i<oldbr/8; i++) { 
+             if(sem_trywait(takeImgSem)==0)
+             {
+                printf("Nuller: taking image\n");
+                takingImg = 1;
+                doneIntegrating = 0;   
+                memset(imgBuffPtr, 0, sizeof(*imgBuffPtr) * params->nXPix * params->nYPix);    // zero out array
+                startTimestamp = *startTsPtr;
+                integrationTime = *intTimePtr;
+                if(startTimestamp==0)
+                    startTimestamp = curTs;
+                printf("TSDiff: %d\n", startTimestamp-curTs);
+                printf("startTimestamp: %d\n", startTimestamp);
+              
+             }
+             if(takingImg)
+                forLoopIters++;
+             sem_getvalue(takeImgSem, &semVal);
+             //printf("takeImgSemVal %d: \n", semVal);
+
+             swp = *((uint64_t *) (&olddata[i*8]));
+             swp1 = __bswap_64(swp);
+             hdr = (struct hdrpacket *) (&swp1);             
+                                      
+             if (hdr->start == 0b11111111) {        // found new packet header!
+                // fill packet and parse
+                // printf("Found Header at %d\n",i*8); fflush(stdout);
+                memmove(packet,&olddata[pstart],i*8 - pstart);
+                curRoachInd = 0;
+
+                curTs = (uint64_t)hdr->timestamp;
+                //gettimeofday(&tv, NULL);
+                //sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
+                //sysTs = sysTs*2;
+
+                //fprintf(timeFile, "%llu %llu\n", curTs, sysTs);
+                
+                //Figure out index corresponding to roach number (index of roachNum in boardNums)
+                //If this doesn't exist, assign it
+                for(j=0; j<params->nRoach; j++)
+                {
+                    if(boardNums[j]==hdr->roach)
+                    {
+                        curRoachInd = j;
+                        break;
+
+                    }
+                    if(boardNums[j]==0)
+                    {
+                        boardNums[j] = hdr->roach;
+                        curRoachInd = j;
+                        break;
+
+                    }
+
+                }
+
+                if(takingImg)
+                {
+                    //printf("curRoachTs: %lld\n", curTs);
+                    if((curTs>startTimestamp)&&(curTs<=(startTimestamp+integrationTime)))
+                        ParsePacketSN(imgBuffPtr,packet,i*8 - pstart,params->nXPix,params->nYPix); 
+                    else if(curTs>(startTimestamp+integrationTime))
+                    {
+                        doneIntegrating |= (1<<curRoachInd);
+                        //printf("Nuller: Roach %d done Integrating\n", boardNums[curRoachInd]);
+
+                    }
+
+                    //printf("Nuller: curTs %lld\n", curTs);
+                    pcount++;
+
+                    if(doneIntegrating==doneIntMask) //check to see if all boards are done integrating
+                    {
+                        takingImg = 0;
+                        clock_gettime(CLOCK_REALTIME, &stopSpec);
+                        //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
+                        sem_post(doneImgSem);
+                        printf("Nuller: done image at %lld\n", curTs);
+                        printf("Nuller: int time %d\n", curTs-startTimestamp);
+                        //printf("Nuller: real time %d ms\n", (nsElapsed)/1000000);
+                        printf("Nuller: Parse rate = %d pkts/img. Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
+                        //printf("Nuller: forLoopIters %d\n", forLoopIters);
+                        //printf("Nuller: whileLoopIters %d\n", whileLoopIters);
+                        printf("Nuller: oldbr: %d\n", oldbr);
+                        pcount = 0;
+                        forLoopIters = 0;
+                        whileLoopIters = 0;
+
+                    }
+                
+                }
+		pstart = i*8;   // move start location for next packet	                      
+             }
+          }
+
+	  // if there is data remaining save it for next run through
+          //printf("Copying excess %d, %d\n",oldbr,pstart); fflush(stdout);
+          memmove(olddata,&olddata[pstart],oldbr-pstart);
+          oldbr = oldbr-pstart;          
+       }                           
+    }
+
+    free(olddata);
+    free(boardNums);
+    printf("Nuller: Closing semaphores\n");
+    sem_close(takeImgSem);
+    sem_close(doneImgSem);
+    sem_unlink(takeImgSemName);
+    sem_unlink(doneImgSemName);
+    printf("Nuller: semaphores unlinked\n");
+
+    
+    printf("Nuller: Umapping Shm\n");
+    munmap(imgBuffPtr, sizeof(uint16_t)*params->nXPix*params->nYPix);
+    munmap(startTsPtr, sizeof(uint64_t));
+    munmap(intTimePtr, sizeof(uint64_t));
+    printf("Nuller: Unlinking Shm\n");
+    shm_unlink(imgShmName);
+    shm_unlink(tsShmName);
+    shm_unlink(intTimeShmName);
+    
+    //fclose(timeFile);
+    printf("Nuller: Closing\n");
+    return NULL;
+}
+
+void* Cuber(void *prms)
 {
     int64_t br,i,ret;
     char data[1024];
@@ -192,11 +553,10 @@ void* Cuber()
     char packet[808*16];
     time_t s,olds;  // Seconds
     struct timespec spec;
-    uint16_t image[XPIX][YPIX];
+    uint16_t **image;
     FILE *wp;
     char outfile[160];
     uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
-    uint64_t frame[NROACH];
     uint64_t pcount = 0;
     struct hdrpacket *hdr;
     uint64_t swp,swp1;
@@ -205,6 +565,13 @@ void* Cuber()
     struct timeval tv;
     unsigned long long sysTs;
     uint64_t roachTs;
+    struct cfgParams *params;
+    uint32_t tsOffs; //UTC timestamp for year start time
+    struct tm *startTime;
+    struct tm *yearStartTime;
+    int year;
+
+    params = (struct cfgParams*)prms; //cast param struct
 
     ret = MaximizePriority(6);
     printf("Fear the wrath of CUBER!\n");
@@ -212,33 +579,56 @@ void* Cuber()
     // open shared memory block 2 for photon data
     rptr = OpenShared("/roachstream2");    
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
-    
-    memset(image, 0, sizeof(image[0][0]) * XPIX * YPIX);    // zero out array
+
+    //initialize image
+    printf("nXPix %d\n", params->nXPix);
+    printf("nYPix %d\n", params->nYPix);
+    image = (uint16_t**)malloc(params->nXPix * sizeof(uint16_t*));
+    for(i=0; i<params->nXPix; i++)
+    {
+        image[i] = (uint16_t*)malloc(params->nYPix * sizeof(uint16_t));
+        memset(image[i], 0, sizeof(uint16_t)*params->nYPix);
+
+    }
+
+    //memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
     memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
     memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
     memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
-    memset(frame,0,sizeof(frame[0])*NROACH);
 
     clock_gettime(CLOCK_REALTIME, &spec);   
     olds  = spec.tv_sec;
+
+    //startTime = gmtime(&olds);
+    //year = startTime->tm_year;
+    //yearStartTime = calloc(1, sizeof(struct tm));
+    //yearStartTime->tm_year = year;
+    //yearStartTime->tm_mday = 1;
+    //tsOffs = timegm(yearStartTime);
     
     //FILE *timeFile = fopen("timetestPk6.txt", "w");
 
-    while (access( "/home/ramdisk/QUIT", F_OK ) == -1)
+    while(sem_trywait(&quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
        // if it is a new second, zero the image array and start over
        clock_gettime(CLOCK_REALTIME, &spec);   
        s  = spec.tv_sec;
        if( s > olds ) {                 
           // we are in a new second, so write out image array and then zero out the array
-          sprintf(outfile,"/home/ramdisk/%d.img",olds);
+          sprintf(outfile,"%s/%d.img", params->ramdiskPath, olds);
           wp = fopen(outfile,"wb");
-          fwrite(image, sizeof(image[0][0]), XPIX * YPIX, wp);
+          //fwrite(image, sizeof(image[0][0]), params->nXPix * params->nYPix, wp);
+          for(i=0; i<params->nXPix; i++)
+          {
+            fwrite(image[i], sizeof(uint16_t), params->nYPix, wp); //write to file
+            memset(image[i], 0, sizeof(uint16_t)*params->nYPix); //zero out array
+          
+          }
           fclose(wp);
           wp = NULL;
 
           olds = s;
-          memset(image, 0, sizeof(image[0][0]) * XPIX * YPIX);    // zero out array
+          //memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
           printf("CUBER: Parse rate = %d pkts/sec. Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
           pcount=0;
        }
@@ -285,7 +675,7 @@ void* Cuber()
 
        // if there is data waiting, process it
        pstart = 0;
-       if( oldbr >= 808*10 ) {       
+       if( oldbr >= 808 ) {       
           // search the available data for a packet boundary
           //printf("Start Parse\n"); fflush(stdout);
           for( i=1; i<oldbr/8; i++) {
@@ -305,8 +695,8 @@ void* Cuber()
 
                 memmove(packet,&olddata[pstart],i*8 - pstart);
                 pcount++;                
-                ParsePacket(image,packet,i*8 - pstart,frame); 
-		pstart = i*8;   // move start location for next packet	                      
+                ParsePacket(image,packet,i*8 - pstart, params->nXPix, params->nYPix); 
+		        pstart = i*8;   // move start location for next packet	                      
              }
           }
 
@@ -319,10 +709,14 @@ void* Cuber()
 
     printf("CUBER: Closing\n");
     free(olddata);
+    for(i=0; i<params->nXPix; i++)
+        free(image[i]);
+    free(image);
+    free(yearStartTime);
     return NULL;
 }
 
-void* Writer()
+void* Writer(void *prms)
 {
     //long            ms; // Milliseconds
     time_t          s,olds;  // Seconds
@@ -334,10 +728,17 @@ void* Writer()
     char path[80];
     char fname[120];
     struct readoutstream *rptr;
-    
+    char startFileName[STRBUF], stopFileName[STRBUF], quitFileName[STRBUF];
+    struct cfgParams *params;
+
+    params = (struct cfgParams*)prms; //cast param struct
     ret = MaximizePriority(4);
 
     printf("Rev up the RAID array, WRITER is active!\n");
+
+    sprintf(startFileName, "%s/%s", params->ramdiskPath, "START");
+    sprintf(stopFileName, "%s/%s", params->ramdiskPath, "STOP");
+    sprintf(quitFileName, "%s/%s", params->ramdiskPath, "QUIT");
 
     // open shared memory block 1 for photon data
     rptr = OpenShared("/roachstream1");
@@ -361,7 +762,7 @@ void* Writer()
 	      sem_post(&sem[0]);
        }
 
-       if( mode == 0 && access( "/home/ramdisk/START", F_OK ) != -1 ) {
+       if( mode == 0 && access(startFileName, F_OK ) != -1 ) {
           // start file exists, go to mode 1
            mode = 1;
            printf("Mode 0->1\n");
@@ -369,10 +770,10 @@ void* Writer()
 
        if( mode == 1 ) {
           // read path from start, generate filename, and open file pointer for writing
-          rp = fopen("/home/ramdisk/START","r");
+          rp = fopen(startFileName,"r");
           fscanf(rp,"%s",path);
           fclose(rp);
-          remove("/home/ramdisk/START");
+          remove(startFileName);
 
           clock_gettime(CLOCK_REALTIME, &spec);   
           s  = spec.tv_sec;
@@ -386,11 +787,11 @@ void* Writer()
        }
 
        if( mode == 2 ) {
-          if ( access( "/home/ramdisk/STOP", F_OK ) != -1 ) {
+          if ( access(stopFileName, F_OK ) != -1 ) {
              // stop file exists, finish up and go to mode 0
 	         fclose(wp);
              wp = NULL;
-             remove("/home/ramdisk/STOP");
+             remove(stopFileName);
              mode = 0;
              printf("Mode 2->0\n");
           } else {
@@ -422,15 +823,20 @@ void* Writer()
        }
 
        // check for quit flag and then bug out if received! 
-       if( access( "/home/ramdisk/QUIT", F_OK ) != -1 ) {
+       if( access(quitFileName, F_OK ) != -1 ) {
           if(wp!=NULL)
 	        fclose(wp);
-          remove("/home/ramdisk/START");
-          remove("/home/ramdisk/STOP");
-          remove("/home/ramdisk/QUIT");
+          remove(startFileName);
+          remove(stopFileName);
+          remove(quitFileName);
+          sem_post(&quitSem);
+          sem_post(&quitSem);
+          if(params->useNuller)
+            sem_post(&quitSem);
           mode = 3;
           printf("Mode 3\n");
        }
+
 
     }
 
@@ -452,7 +858,7 @@ void* Writer()
 }
 
 
-void* Reader()
+void* Reader(void *prms)
 {
   //set up a socket connection
   struct sockaddr_in si_me, si_other;
@@ -460,7 +866,10 @@ void* Reader()
   unsigned char buf[BUFLEN];
   ssize_t nBytesReceived = 0;
   ssize_t nTotalBytes = 0;
-  struct readoutstream *rptr1, *rptr2;
+  struct readoutstream *rptr1, *rptr2, *rptr3;
+  struct cfgParams *params;
+
+  params = (struct cfgParams*)prms; //cast param struct
   
   ret = MaximizePriority(2);
 
@@ -469,6 +878,8 @@ void* Reader()
   // Create shared memory for photon data
   rptr1 = OpenShared("/roachstream1");
   rptr2 = OpenShared("/roachstream2");
+  if(params->useNuller)
+    rptr3 = OpenShared("/roachstream3");
 
   if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
     diep("socket");
@@ -506,7 +917,7 @@ void* Reader()
   //while ( recv(s, buf, BUFLEN, 0) > 0 );
   //printf("READER: buffer clear!\n"); fflush(stdout);
 
-  while (access( "/home/ramdisk/QUIT", F_OK ) == -1)
+  while(sem_trywait(&quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
   {
     /*
     if (nFrames % 100 == 0)
@@ -563,11 +974,25 @@ void* Reader()
     }      
     sem_post(&sem[1]);
 
+    if(params->useNuller)
+    {
+        sem_wait(&sem[2]);
+        if( rptr3->unread >= (SHAREDBUF - BUFLEN) ) {
+           perror("Data overflow 2 in Reader.\n");   
+        } 
+        else {
+           memmove( &(rptr3->data[rptr3->unread]),buf,nBytesReceived);
+           rptr3->unread += nBytesReceived;
+        }      
+        sem_post(&sem[2]);
+    }
   }
 
   //fclose(dump_file);
   printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
   close(s);
+
+  printf("Reader closing\n");
 
   return NULL;
 
@@ -604,18 +1029,38 @@ double timespec_subtract (struct timespec *x, struct timespec *y) {
 int main(void)
 {
     
-    pthread_t threads[3];
+    pthread_t threads[4];
     pthread_attr_t attr;
     void *status;
-    
+
     int rc,t;
     char buf[30];
-    struct readoutstream *rptr1, *rptr2;
+    struct readoutstream *rptr1, *rptr2, *rptr3;
+    
+    FILE *cfgfp;
+    struct cfgParams params;
+    char startFileName[STRBUF], stopFileName[STRBUF], quitFileName[STRBUF];
+    
+    // Wait for existing config file
+    printf("Waiting for Dashboard\n");
+    while (access( "PacketMaster.cfg", F_OK ) == -1) usleep(10000); //sleep 10 ms
+
+    cfgfp = fopen("PacketMaster.cfg","r");
+    fscanf(cfgfp,"%s\n", params.ramdiskPath);
+    fscanf(cfgfp,"%d %d\n", &(params.nXPix), &(params.nYPix));
+    fscanf(cfgfp, "%d\n", &(params.useNuller));
+    fscanf(cfgfp, "%d\n", &(params.nRoach));
+    fclose(cfgfp);
+    remove("PacketMaster.cfg");
+    //printf("%d\n", params.nXPix);
     
     // Delete pre-existing control files
-    remove("/home/ramdisk/START");
-    remove("/home/ramdisk/STOP");
-    remove("/home/ramdisk/QUIT");
+    sprintf(startFileName, "%s/%s", params.ramdiskPath, "START");
+    sprintf(stopFileName, "%s/%s", params.ramdiskPath, "STOP");
+    sprintf(quitFileName, "%s/%s", params.ramdiskPath, "QUIT");
+    remove(startFileName);
+    remove(stopFileName);
+    remove(quitFileName);
     
     // Initialize and set thread detached attribute
     pthread_attr_init(&attr);
@@ -624,28 +1069,41 @@ int main(void)
     // Set up semaphores
     sem_init(&sem[0], 0, 1);
     sem_init(&sem[1], 0, 1);
+    if(params.useNuller)
+        sem_init(&sem[2], 0, 1);
+    sem_init(&quitSem, 0, 0);
 
     // Create shared memory for photon data
     rptr1 = OpenShared("/roachstream1");
     rptr2 = OpenShared("/roachstream2");
+    rptr3 = OpenShared("/roachstream3");
     
     t=0;
-    rc = pthread_create(&threads[0], &attr, Reader, (void *) &t);
+    rc = pthread_create(&threads[0], &attr, Reader, &params);
     if (rc){
         printf("ERROR creating Reader(); return code from pthread_create() is %d\n", rc);
         exit(-1);
     }
     
-    rc = pthread_create(&threads[1], &attr, Writer, (void *) &t);
+    rc = pthread_create(&threads[1], &attr, Writer, &params);
     if (rc){
         printf("ERROR creating Writer(); return code from pthread_create() is %d\n", rc);
         exit(-1);
     }
     
-    rc = pthread_create(&threads[2], &attr, Cuber, (void *) &t);
+    rc = pthread_create(&threads[2], &attr, Cuber, &params);
     if (rc){
         printf("ERROR creating Cuber(); return code from pthread_create() is %d\n", rc);
         exit(-1);
+    }
+    
+    if(params.useNuller){
+        rc = pthread_create(&threads[3], &attr, Nuller, &params);
+        if (rc){
+            printf("ERROR creating Nuller(); return code from pthread_create() is %d\n", rc);
+            exit(-1);
+        }
+    
     }
     
     pthread_attr_destroy(&attr);
@@ -656,18 +1114,28 @@ int main(void)
     }
                        
     // close shared memory
-    printf("Closing shared memory");
+    printf("Closing shared memory...\n");
     sem_wait(&sem[0]);  // stop messing with memory 
     sem_wait(&sem[1]);      
     
-    printf("Killing Cuber and Reader");
-    pthread_cancel(threads[0]);  // kill Reader
-    pthread_cancel(threads[2]);  // kill Cuber
+    //printf("Killing Cuber and Reader\n");
+    //pthread_cancel(threads[0]);  // kill Reader
+    //pthread_cancel(threads[2]);  // kill Cuber
     
     shm_unlink("/roachstream1");   
     shm_unlink("/roachstream2");   
     sem_close(&sem[0]);
     sem_close(&sem[1]);
+
+    if(params.useNuller)
+    {
+        sem_wait(&sem[2]);
+        shm_unlink("/roachstream3");
+        sem_close(&sem[2]);
+
+    }
+
+    sem_close(&quitSem);
     
     pthread_exit(NULL);  // close up shop
 }

@@ -34,9 +34,9 @@ from PixelHistogramWindow import PixelHistogramWindow
 from LaserControl import LaserControl
 from Telescope import *
 import casperfpga
-from Roach2Controls import Roach2Controls
+from MkidDigitalReadout.DataReadout.ChannelizerControls.Roach2Controls import Roach2Controls
 from lib.utils import interpolateImage
-import sn_hardware as snh
+#import sn_hardware as snh
 #from initialBeammap import xyPack,xyUnpack
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
@@ -407,6 +407,21 @@ class MkidDashboard(QMainWindow):
         self.takingDark = -1                        # Flag for taking dark image. Indicates number of images we still need for darkField image. Negative means not taking a dark
         self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
         
+        # Initialize PacketMaster8
+        print 'Initializing packetmaster...'
+        packetMaster_path=self.config.get('properties','packetMaster_path')
+        packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
+        #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
+        #command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
+        #print command
+        #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
+        packetMasterCfg = open(os.path.join(os.path.dirname(packetMaster_path), 'PacketMaster.cfg'), 'w')
+        packetMasterCfg.write(self.config.get('properties', 'cuber_ramdisk') + '\n')
+        packetMasterCfg.write(str(self.config.get('properties', 'ncols')) + ' ' + str(self.config.get('properties', 'nrows')) + '\n')
+        packetMasterCfg.write(str(self.config.get('properties', 'use_nuller')) + '\n')
+        packetMasterCfg.write(str(len(roachNums)))
+        packetMasterCfg.close()
+
 
         #Laser Controller
         print 'Setting up laser control...'
@@ -482,14 +497,6 @@ class MkidDashboard(QMainWindow):
         '''
 
 
-        # Start PacketMaster3
-        print 'Starting packetmaster3...'
-        packetMaster_path=self.config.get('properties','packetMaster_path')
-        packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
-        #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
-        command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
-        print command
-        #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
         
     def turnOffPhotonCapture(self):
         """
@@ -542,7 +549,7 @@ class MkidDashboard(QMainWindow):
             roach.connect()
             
             roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
-            roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod'))
+            #roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod')) Deleted in darkquad29
 
             self.roachList.append(roach)
             
@@ -1133,7 +1140,7 @@ class MkidDashboard(QMainWindow):
             
             data_path = self.config.get('properties','data_dir')
             start_file_loc = self.config.get('properties','cuber_ramdisk')
-            print "Starting Obs"
+            print "Starting Obs", "Start file Loc:", start_file_loc
             f=open(start_file_loc+'/START','w')
             f.write(data_path)
             f.close()
@@ -1205,7 +1212,7 @@ class MkidDashboard(QMainWindow):
         telescopeDict = self.telescopeController.getAllTelescopeInfo(self.textbox_target.text())
         self.writeLog('telescope',**telescopeDict)
     
-    def writeLog(self, target=None, *args, **kwargs):
+    def writeLog(self, target,*args, **kwargs):
         """
         Writes a log file
         The file is named 'UNIXTIME_target.log'
@@ -1359,6 +1366,7 @@ class MkidDashboard(QMainWindow):
         def takeDark():
             self.darkField=None
             self.takingDark=self.spinbox_darkImage.value()
+            self.writeLog('dark', str(darkIntTime) + ' sec integration time')  #added by clint
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
         self.checkbox_darkImage.setChecked(False)
