@@ -21,7 +21,7 @@ Example usage:
     attenList = np.random.randint(23,33,nFreqs)
     
     # Talk to Roach
-    roach_0 = FpgaControls(ip, params, True, True)
+    roach_0 = Roach2Controls(ip, params, True, True)
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
@@ -90,8 +90,8 @@ import scipy.special
 import casperfpga
 import socket
 import binascii
-from binTools import castBin
-from readDict import readDict
+from lib.binTools import castBin
+from lib.readDict import readDict
 #from initialBeammap import xyPack,xyUnpack
 
 class Roach2Controls:
@@ -703,6 +703,94 @@ class Roach2Controls:
             raise Exception('MicroBlaze failed to set LO!')
         #time.sleep(1)
 
+    def loadLOFreqDebug(self,LOFreq=None,regList=None):
+        """
+        Send LO frequency to V7 over UART.
+        Must initialize LO first.
+        
+        INPUTS:
+            LOFreq - LO frequency in MHz
+            regList - 7 element list of SPI programming regs, before freq info is added
+        
+        Sends LO freq one byte at a time, LSB first
+           sends integer bytes first, then fractional
+        """
+        if LOFreq is None:
+            try:
+                LOFreq = self.LOFreq/1e6 #IF board uses MHz
+            except AttributeError:
+                print "Run setLOFreq() first!"
+                raise        
+       
+        if not len(regList)==7:
+            raise Exception('regList must have 7 register values')
+        loFreqInt = int(LOFreq)
+        loFreqFrac = LOFreq - loFreqInt
+        
+        # Put V7 into LO recv mode
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+
+        self.v7_ready = 0
+        self.fpga.write_int(self.params['inByteUART_reg'],self.params['mbRecvLODebug'])
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUART_reg'],1)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUART_reg'],0)        
+
+        for regVal in regList:
+            for j in range(4):
+                transferByte = (regVal>>(j*8))&255
+                while(not(self.v7_ready)):
+                    self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                    time.sleep(0.01)
+                self.v7_ready = 0
+                self.sendUARTCommand(transferByte)
+        
+        for i in range(2):
+            transferByte = (loFreqInt>>(i*8))&255 #takes an 8-bit "slice" of loFreqInt
+            
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+
+            if(self.v7_ready == self.params['v7Err']):
+                raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
+
+            self.v7_ready = 0
+            self.fpga.write_int(self.params['inByteUART_reg'],transferByte)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUART_reg'],1)
+            time.sleep(0.001)
+            self.fpga.write_int(self.params['txEnUART_reg'],0)
+        
+        #print 'loFreqFrac' + str(loFreqFrac)	
+        loFreqFrac = int(loFreqFrac*(2**16))
+        #print 'loFreqFrac' + str(loFreqFrac)
+        
+        # same as transfer of int bytes
+        for i in range(2):
+            transferByte = (loFreqFrac>>(i*8))&255
+            
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                time.sleep(0.01)
+            
+            if(self.v7_ready == self.params['v7Err']):
+                raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
+
+            self.v7_ready = 0
+            self.fpga.write_int(self.params['inByteUART_reg'],transferByte)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUART_reg'],1)
+            time.sleep(0.001)
+            self.fpga.write_int(self.params['txEnUART_reg'],0)
+    
+        while(not(self.v7_ready)):      # Wait for V7 to say it's done setting LO
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(0.01)
+
+        if(self.v7_ready == self.params['v7Err']):
+            raise Exception('MicroBlaze failed to set LO!')
 
     def setAdcScale(self, scale=.25):
         """
@@ -903,6 +991,17 @@ class Roach2Controls:
         # check that we are utilizing the dynamic range of the DAC correctly
         highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
         expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)   # 10% of the time there should be a point this many sigmas higher than average
+
+        if self.verbose:
+            print '\tUsing '+str(1.0*highestVal/maxAmp*100)+' percent of DAC dynamic range'
+            print '\thighest: '+str(highestVal)+' out of '+str(maxAmp)
+            print '\tsigma_I: '+str(np.std(iValues))+' sigma_Q: '+str(np.std(qValues))
+            print '\tLargest val_I: '+str(1.0*np.abs(iValues).max()/np.std(iValues))+' sigma. Largest val_Q: '+str(1.0*np.abs(qValues).max()/np.std(qValues))+' sigma.'
+            print '\tExpected val: '+str(expectedHighestVal_sig)+' sigmas'
+            #print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
+            #print '\tDac Q vals: '+str(qValues)
+            #print '\tDac I vals: '+str(iValues)
+            
         if highestVal > expectedHighestVal_sig*np.max((np.std(iValues),np.std(qValues))):
             warnings.warn("The freq comb's relative phases may have added up sub-optimally. You should calculate new random phases")
         if highestVal > maxAmp:
@@ -913,14 +1012,6 @@ class Roach2Controls:
             warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: "+str(int(np.floor(20.*np.log10(1.0*maxAmp/highestVal))))+' dB')
         
         if self.verbose:
-            print '\tUsing '+str(1.0*highestVal/maxAmp*100)+' percent of DAC dynamic range'
-            print '\thighest: '+str(highestVal)+' out of '+str(maxAmp)
-            print '\tsigma_I: '+str(np.std(iValues))+' sigma_Q: '+str(np.std(qValues))
-            print '\tLargest val_I: '+str(1.0*np.abs(iValues).max()/np.std(iValues))+' sigma. Largest val_Q: '+str(1.0*np.abs(qValues).max()/np.std(qValues))+' sigma.'
-            print '\tExpected val: '+str(expectedHighestVal_sig)+' sigmas'
-            #print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
-            #print '\tDac Q vals: '+str(qValues)
-            #print '\tDac I vals: '+str(iValues)
             print '...Done!'
 
         '''
