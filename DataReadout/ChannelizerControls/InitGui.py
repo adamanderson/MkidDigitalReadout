@@ -404,16 +404,26 @@ class InitGui(QMainWindow):
 
 
 if __name__ == "__main__":
+    import argparse as ap
+
+    P = ap.ArgumentParser(description="Initialize GUI")
+
+    E = P.add_mutually_exclusive_group()
+    E.add_argument("roachNums", nargs="*", default=[], action="store", type=int,
+                   help="Roach nums to initialize")
+    E.add_argument("-a", "--all", action="store", type=int, default=0,
+                   help="Initialize all roaches")
+
+    P.add_argument("-c", "--config", action="store", default="init.cfg",
+                   help="Config file to load")
+
     app = QApplication(sys.argv)
-    try: roachNums = np.asarray(sys.argv[1:],dtype=np.int)
-    except: pass
-    if len(sys.argv[1:]) == 2:
-        if sys.argv[1] == '-a' or sys.argv[1] == '-all':
-            roachNums = np.arange(int(sys.argv[2]),dtype=np.int)
-        elif sys.argv[2] == '-a' or sys.argv[2] == '-all':
-            roachNums = np.arange(int(sys.argv[1]),dtype=np.int)
-    
-    form = InitGui(roachNums)
+
+    args = P.parse_args()
+
+    if args.all:
+        args.roachNums = np.arange(args.all, dtype=int)
+
+    form = InitGui(args.roachNums, args.config)
     form.show()
     app.exec_()
-
