@@ -90,7 +90,7 @@ import scipy.special
 import casperfpga
 import socket
 import binascii
-from Utils.binTools import castBin  # part of SDR
+from MkidDigitalReadout.utils.binTools import castBin
 from MkidDigitalReadout.utils.readDict import readDict
 #from initialBeammap import xyPack,xyUnpack
 
