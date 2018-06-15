@@ -131,7 +131,7 @@ class Roach2Controls:
         try:
             self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=3.)
         except:
-            self.fpga = casperfpga.casperfpga.CasperFpga(self.ip,timeout=3.)
+            self.fpga = casperfpga.casperfpga.CasperFpga(self.ip,timeout=60.)
         time.sleep(.1)
         self.fpga._timeout = 50.
         if not self.fpga.is_running():
