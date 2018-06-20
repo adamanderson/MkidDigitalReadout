@@ -1,4 +1,4 @@
-import datetime, time
+import datetime, time, os
 from PyQt4 import QtGui, uic
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
@@ -13,7 +13,8 @@ class IQPlotWindow(QtGui.QMainWindow):
     def __init__(self, rc):
         super(IQPlotWindow,self).__init__()
         self.rc = rc
-        uic.loadUi('IQPlotWidget.ui', self)
+        thisDir = os.path.dirname(os.path.abspath(__file__))
+        uic.loadUi(os.path.join(thisDir,'IQPlotWidget.ui'), self)
         self.topPlot =    self.graphicsLayoutWidget.addPlot()
         self.graphicsLayoutWidget.nextRow()
         self.bottomPlot = self.graphicsLayoutWidget.addPlot()
