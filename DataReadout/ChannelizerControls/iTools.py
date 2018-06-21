@@ -30,11 +30,11 @@ def getItoolsVersion():
     return iToolsVersion
 
 def connect(roachNumber, configFile):
-    rc = RoachConnection.RoachConnection(roachNumber, configFile)
-    return rc
+    rchc = RoachConnection.RoachConnection(roachNumber, configFile)
+    return rchc
 
-def loadFreq(rc):
-    rc.loadFreq()
+def loadFreq(rchc):
+    rchc.loadFreq()
 
 def setup(roachNumber, configFile):
     """
@@ -42,14 +42,17 @@ def setup(roachNumber, configFile):
     for making measurements
     """
 
-    rc = connect(roachNumber, configFile)
-    rc.loadFreq()
-    rc.defineRoachLUTs()
-    rc.defineDacLUTs()
-    return rc
+    rchc = connect(roachNumber, configFile)
+    rchc.loadFreq()
+    rchc.defineRoachLUTs()
+    rchc.defineDacLUTs()
+    return rchc
 
-def plotIQ(rc):
+def plotIQ(rchc):
     reload(IQPlotWindow)
-    iqPlotWindow = IQPlotWindow.IQPlotWindow(rc)
+    iqPlotWindow = IQPlotWindow.IQPlotWindow(rchc)
     iqPlotWindow.show()
     return iqPlotWindow
+
+def plotPhases(rchc):
+    print "plot phases"
