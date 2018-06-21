@@ -15,17 +15,9 @@ class H5Writer():
         self.nWrittenToFile = 0
 
     def __openNextFile(self):
-        #sefl.fileName = glob with self.fileNamePrefix to get new file name
         self.fileName = self.__getNextFileName()
         self.file = tables.open_file(self.fileName, mode='w')
         self.arrays = {}
-        # How do we want to save this info?
-        #self.arrays['resIDs'] = self.file.create_vlarray(self.file.root, 'resIDs', tables.Float32Atom(shape=()),'resIDs',
-        #                                   filters=tables.Filters(1))
-        #self.arrays['freqList'] = self.file.create_vlarray(self.file.root, 'freqList', tables.Float32Atom(shape=()),'freqList',
-        #                                   filters=tables.Filters(1))
-        #self.arrays['attenList'] = self.file.create_vlarray(self.file.root, 'attenList', tables.Float32Atom(shape=()),'attenList',
-        #                                   filters=tables.Filters(1))
 
         self.arrays['I'] = self.file.create_vlarray(self.file.root, 'I',tables.Int32Atom(shape=()),'I',
                                            filters=tables.Filters(1))
