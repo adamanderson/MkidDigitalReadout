@@ -25,6 +25,8 @@ import RoachConnection
 reload(RoachConnection)
 import IQPlotWindow
 reload(IQPlotWindow)
+import PhasePlotWindow
+reload(PhasePlotWindow)
 
 def getItoolsVersion():
     return iToolsVersion
@@ -55,4 +57,18 @@ def plotIQ(rchc):
     return iqPlotWindow
 
 def plotPhases(rchc):
-    print "plot phases"
+    reload(PhasePlotWindow)
+    phasePlotWindow = PhasePlotWindow.PhasePlotWindow(rchc)
+    phasePlotWindow.show()
+    return phasePlotWindow
+
+def readPhasesTest(rchc):
+    freqChan = 0
+    duration = 1.0
+
+    hostIP = rchc.config.get('HOST', 'hostIP')
+    port = int(rchc.config.get(rchc.roachString,'port'))
+
+    data = rchc.roachController.takePhaseStreamDataOfFreqChannel(
+        freqChan=freqChan, duration=duration, hostIP=hostIP, fabric_port=port)
+    return data

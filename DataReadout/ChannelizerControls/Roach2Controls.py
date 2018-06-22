@@ -1729,6 +1729,7 @@ class Roach2Controls:
             phases - a list of phases in radians
         """
         
+
         self.startPhaseStream(selChanIndex, pktsPerFrame, fabric_port, hostIP )
         if self.verbose:
             print "Collecting phase time stream..."

@@ -6,6 +6,8 @@ The logic is copied from RoachStateMachine.  RoachConnect does not have any GUI 
 
 import ConfigParser, os, pickle
 import numpy as np
+import Roach2Controls
+reload(Roach2Controls)
 from Roach2Controls import Roach2Controls
 
 class RoachConnection():
