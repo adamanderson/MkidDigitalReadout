@@ -81,7 +81,7 @@
       <item>
        <widget class="QLineEdit" name="fileNamePrefix">
         <property name="text">
-         <string>iqData</string>
+         <string>phaseData</string>
         </property>
        </widget>
       </item>

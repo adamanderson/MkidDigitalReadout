@@ -16,8 +16,8 @@ class PhasePlotWindow(QtGui.QMainWindow):
         thisDir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(thisDir,'PhasePlotWidget.ui'), self)
         self.topPlot =    self.graphicsLayoutWidget.addPlot()
-        self.graphicsLayoutWidget.nextRow()
-        self.bottomPlot = self.graphicsLayoutWidget.addPlot()
+        #self.graphicsLayoutWidget.nextRow()
+        #self.bottomPlot = self.graphicsLayoutWidget.addPlot()
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
         self.duration.currentIndexChanged.connect(self.durationChanged)
@@ -140,7 +140,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         # where phases is a 1d numpy array of phases in radians
         if self.recentPhases is not None:
             self.topPlot.clear()
-            self.bottomPlot.clear()
+            #self.bottomPlot.clear()
             phases = self.recentPhases
             if self.wtp == "time":
                 self.topPlot.plot(phases)
@@ -225,13 +225,15 @@ class Writer(QThread):
         if value == "Stop":
             self.keepAlive = False
     def run(self):
-        h5Writer = H5IO.H5Writer()
+        fileHandle = open("phaseData.txt",'wb')
+        #h5Writer = H5IO.H5Writer()
         while self.keepAlive:
             while len(dq) > 0:
                 data = dq.popleft()
                 fileNamePrefix = data['fileNamePrefix']
-                recentIQData = data['recentIQData']
-                h5Writer.write(recentIQData,fileNamePrefix)
+                recentPhases = data['recentPhases']
+                #h5Writer.write(recentPhases,fileNamePrefix)
+                np.savetxt(fileHandle, recentPhases)
             time.sleep(1.0)
         print "Writer:  call h5Writer.close()"
         h5Writer.close()
