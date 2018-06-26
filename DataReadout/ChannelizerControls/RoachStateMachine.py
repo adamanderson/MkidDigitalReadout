@@ -4,7 +4,7 @@ DATE: May 15, 2016
 
 The RoachStateMachine class runs the commands on the readout boards. Uses Roach2Controls Class
 """
-import os, sys, time, random
+import os, sys, time, random, socket
 import traceback
 import numpy as np
 from PyQt4 import QtCore
@@ -706,7 +706,15 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         #    print "Need to load freqs first!"
         #    self.finished.emit()
         #    return
-        hostip = self.config.get('HOST','hostIP')
+        
+        # get the ipaddress of the roach board
+        ipaddress = self.config.get('Roach '+str(self.num),'ipaddress')
+
+        # find the ip address of this computer that the roach board uses to talk back
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((ipaddress,80))
+        hostip = s.getsockname()[0]
+        
         port = int(self.config.get('Roach '+str(self.num),'port'))
         #ch = ch+stream*self.roachController.params['nChannelsPerStream']
         #data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)

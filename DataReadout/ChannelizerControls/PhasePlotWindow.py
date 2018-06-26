@@ -1,4 +1,4 @@
-import datetime, time, os
+import datetime, time, os, socket
 from PyQt4 import QtGui, uic
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
@@ -196,7 +196,17 @@ class Worker(QThread):
                 rcVerbosity = self.parent.rc.roachController.verbose
                 self.parent.rc.roachController.verbose = False
                 self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop, "callTakeData":datetime.datetime.now()})
-                hostIP = self.parent.rc.config.get('HOST', 'hostIP')
+                #hostIP = self.parent.rc.config.get('HOST', 'hostIP')
+
+                # get the ipaddress of the roach board
+                ipaddress = self.parent.rc.config.get(self.parent.rc.roachString,'ipaddress')
+
+                # find the ip address of this computer that the roach board uses to talk back
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect((ipaddress,80))
+                hostIP = s.getsockname()[0]
+                print "in PhasePlotWindow:  hostIP =",hostIP
+                
                 port = int(self.parent.rc.config.get(self.parent.rc.roachString,'port'))
                 phases = self.parent.rc.roachController.takePhaseStreamDataOfFreqChannel(
                     freqChan=self.parent.iFreqIndex, # confirm that this does the right thing 
