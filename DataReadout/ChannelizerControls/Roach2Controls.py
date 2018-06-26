@@ -1468,7 +1468,7 @@ class Roach2Controls:
                     if ch in np.atleast_1d(ch_stream):
                         ch_freq = int(np.atleast_1d(ch_freqs)[np.where(np.atleast_1d(ch_stream)==ch)])     # The freq channel of the resonator corresponding to ch/stream
                         toWriteStr = struct.pack('>{}{}'.format(len(firInts[ch_freq]),'l'), *firInts[ch_freq])
-                        print ' ch:'+str(ch_freq)+' ch/stream: '+str(ch)+'/'+str(stream)
+                        print ' In Roach2Controls:  ch:'+str(ch_freq)+' ch/stream: '+str(ch)+'/'+str(stream)+"\r",
                     else:
                         toWriteStr=zeroWriteStr
                     self.fpga.blindwrite(self.params['firTapsMem_regs'][stream], toWriteStr,0)
@@ -1480,7 +1480,7 @@ class Roach2Controls:
             except:
                 print 'Failed to write FIRs on stream '+str(stream)     # Often times test firmware only implements stream 0
                 if stream==0: raise
-
+        print "Done looping through and writing FIRs to firmware"
     def takePhaseSnapshotOfFreqChannel(self, freqChan):
         '''
         This function overloads takePhaseSnapshot
