@@ -18,9 +18,10 @@ reload(iTools)
 
 
 """
-iToolsVersion = 0.2
 import numpy as np
-import datetime
+import datetime, socket
+iToolsVersion = 0.2.0
+
 import ConfigParser
 import RoachConnection
 reload(RoachConnection)
@@ -68,7 +69,10 @@ def readPhasesTest(rchc):
     freqChan = 0
     duration = 1.0
 
-    hostIP = rchc.config.get('HOST', 'hostIP')
+    ipaddress = rchc.config.get('HOST', 'ipaddress')
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect((ipaddress,80))
+    hostIP = s.getsockname()[0]
     port = int(rchc.config.get(rchc.roachString,'port'))
 
     data = rchc.roachController.takePhaseStreamDataOfFreqChannel(

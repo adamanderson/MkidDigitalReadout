@@ -206,7 +206,7 @@ class Roach2Controls:
     
     def initializeV7UART(self, waitForV7Ready = True, baud_rate = None, lut_dump_buffer_size = None):
         '''
-        Initializes the UART connection to the Virtex 7.  Puts the V7 in Recieve mode, sets the 
+        Initializes the UART connection to the Virtex 7.  Puts the V7 in Receive mode, sets the 
         baud rate
         Defines global variables:
             self.baud_rate - baud rate of UART connection
@@ -609,7 +609,7 @@ class Roach2Controls:
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
             if(self.v7_ready != self.params['v7LUTReady']):
-                raise Exception('Microblaze not ready to recieve LUT!')
+                raise Exception('Microblaze not ready to receive LUT!')
 
             self.fpga.write_int(self.params['txEnUART_reg'],1)
             #print 'enable write'
@@ -1468,7 +1468,7 @@ class Roach2Controls:
                     if ch in np.atleast_1d(ch_stream):
                         ch_freq = int(np.atleast_1d(ch_freqs)[np.where(np.atleast_1d(ch_stream)==ch)])     # The freq channel of the resonator corresponding to ch/stream
                         toWriteStr = struct.pack('>{}{}'.format(len(firInts[ch_freq]),'l'), *firInts[ch_freq])
-                        print ' ch:'+str(ch_freq)+' ch/stream: '+str(ch)+'/'+str(stream)
+                        print ' In Roach2Controls:  ch:'+str(ch_freq)+' ch/stream: '+str(ch)+'/'+str(stream)+"\r",
                     else:
                         toWriteStr=zeroWriteStr
                     self.fpga.blindwrite(self.params['firTapsMem_regs'][stream], toWriteStr,0)
@@ -1480,7 +1480,7 @@ class Roach2Controls:
             except:
                 print 'Failed to write FIRs on stream '+str(stream)     # Often times test firmware only implements stream 0
                 if stream==0: raise
-
+        print "Done looping through and writing FIRs to firmware"
     def takePhaseSnapshotOfFreqChannel(self, freqChan):
         '''
         This function overloads takePhaseSnapshot
@@ -1616,7 +1616,7 @@ class Roach2Controls:
     
     def recvPhaseStream(self, channel=0, duration=60, pktsPerFrame=100, host = '10.0.0.50', port = 50000):
         """
-        Recieves phase timestream data over ethernet, writes it to a file.  Must call
+        Receives phase timestream data over ethernet, writes it to a file.  Must call
         startPhaseStream first to initiate phase stream.
         
         The data is saved in self.phaseTimeStreamData

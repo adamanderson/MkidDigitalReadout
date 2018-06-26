@@ -4,7 +4,7 @@ DATE: May 15, 2016
 
 The RoachStateMachine class runs the commands on the readout boards. Uses Roach2Controls Class
 """
-import os, sys, time, random
+import os, sys, time, random, socket
 import traceback
 import numpy as np
 from PyQt4 import QtCore
@@ -618,7 +618,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         INPUTS:
             command
         """
-        print "Roach ",self.num," Recieved/executing command: ",RoachStateMachine.parseCommand(command)
+        print "Roach ",self.num," Received/executing command: ",RoachStateMachine.parseCommand(command)
         self.state[command] = RoachStateMachine.INPROGRESS
         returnData = None
         time.sleep(random.randint(1,3))
@@ -706,14 +706,23 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         #    print "Need to load freqs first!"
         #    self.finished.emit()
         #    return
-        hostip = self.config.get('HOST','hostIP')
+        
+        # get the ipaddress of the roach board
+        ipaddress = self.config.get('Roach '+str(self.num),'ipaddress')
+
+        # find the ip address of this computer that the roach board uses to talk back
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((ipaddress,80))
+        hostip = s.getsockname()[0]
+        
         port = int(self.config.get('Roach '+str(self.num),'port'))
         #ch = ch+stream*self.roachController.params['nChannelsPerStream']
         #data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
+        longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
+        longSnapFN = longSnapFN.rsplit('.',1)[0]+'_resID'+str(int(resID))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
+        print "in RoachStateMachine.py:  longSnapFN=",longSnapFN
         try:
             data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip, fabric_port=port)
-            longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
-            longSnapFN = longSnapFN.rsplit('.',1)[0]+'_resID'+str(int(resID))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
             np.savez(longSnapFN,data)
         except IOError:
             path = longSnapFN.rsplit('/',1)
