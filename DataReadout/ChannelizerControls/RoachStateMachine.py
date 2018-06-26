@@ -618,7 +618,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         INPUTS:
             command
         """
-        print "Roach ",self.num," Recieved/executing command: ",RoachStateMachine.parseCommand(command)
+        print "Roach ",self.num," Received/executing command: ",RoachStateMachine.parseCommand(command)
         self.state[command] = RoachStateMachine.INPROGRESS
         returnData = None
         time.sleep(random.randint(1,3))

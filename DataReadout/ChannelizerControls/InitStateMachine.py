@@ -282,7 +282,7 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         INPUTS:
             command
         """
-        print "Roach ",self.num," Recieved/executing command: ",InitStateMachine.parseCommand(command)
+        print "Roach ",self.num," Received/executing command: ",InitStateMachine.parseCommand(command)
         self.state[command] = InitStateMachine.INPROGRESS
         returnData = None
         time.sleep(random.randint(1,3))
