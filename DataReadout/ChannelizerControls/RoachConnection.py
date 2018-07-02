@@ -128,6 +128,13 @@ class RoachConnection():
         self.roachController.loadDacLUT()
         return True
 
+    def loadFIRs(self):
+        """
+        Loads FIR coefficients from file into firmware
+        """
+        firCoeffFile = self.config.get(self.roachString,'fircoefffile')
+        self.roachController.loadFIRCoeffs(firCoeffFile)
+        return True
 
 
 
