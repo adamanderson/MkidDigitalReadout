@@ -90,6 +90,7 @@ import scipy.special
 import casperfpga
 import socket
 import binascii
+import randomPhases
 from lib.binTools import castBin
 from lib.readDict import readDict
 #from initialBeammap import xyPack,xyUnpack
@@ -104,7 +105,6 @@ class Roach2Controls:
             verbose - show print statements
             debug - Save some things to disk for debugging
         '''
-        #np.random.seed(1) #Make the random phase values always the same
         self.verbose=verbose
         self.debug=debug
         
@@ -1081,7 +1081,8 @@ class Roach2Controls:
         if amplitudeList is None:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
-            phaseList = np.random.uniform(0,2.*np.pi,len(freqList))
+            #phaseList = np.random.uniform(0,2.*np.pi,len(freqList))
+            phaseList = randomPhases.getRandomPhases(freqList, deltaSeed = 0)['phases']
         if iqRatioList is None:
             iqRatioList = np.ones(len(freqList))
         if iqPhaseOffsList is None:
