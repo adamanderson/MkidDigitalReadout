@@ -20,8 +20,7 @@ reload(iTools)
 """
 import numpy as np
 import datetime, socket
-#iToolsVersion = 0.2.0
-
+iToolsVersion = "0.2.0"
 import ConfigParser
 import RoachConnection
 reload(RoachConnection)

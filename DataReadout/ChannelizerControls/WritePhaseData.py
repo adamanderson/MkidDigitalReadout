@@ -75,7 +75,6 @@ class writePhaseData():
         fileh.close()
 
 
-
     def Write(self):
         if self.fFormat is "ascii":
             self.writeAscii()
@@ -98,4 +97,7 @@ if __name__ == "__main__":
 	#write as ascii file
     wp=writePhaseData(filename,"ascii",freqChan,freqs,duration,data)
     wp.Write()
+
+    # read files
+
 	
