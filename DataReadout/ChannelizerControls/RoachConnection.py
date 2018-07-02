@@ -24,11 +24,12 @@ class RoachConnection():
         self.roachString = 'Roach '+"%d"%roachNumber
         self.FPGAParamFile = self.config.get(self.roachString,'FPGAParamFile')
         self.ipaddress = self.config.get(self.roachString,'ipaddress')
-        self.roachController = Roach2Controls(self.ipaddress,self.FPGAParamFile,True,False)
+        self.roachController = Roach2Controls(self.ipaddress,self.FPGAParamFile, verbose=False, debug=False)
         self.roachController.connect()
         self.originalDdsShift = self.roachController.checkDdsShift()
         self.newDdsShift = self.roachController.loadDdsShift(self.originalDdsShift)
-
+        self.verbose = False
+        
     def loadFreq(self):
         '''
         Loads the resonator freq files (and attenuations, resIDs)
@@ -70,15 +71,16 @@ class RoachConnection():
         attens = attens[argsSorted]
         phaseOffsList = iqRatioList[argsSorted]
         iqRatioList = iqRatioList[argsSorted]
-        for i in range(len(freqs)):
-            print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
+        if self.verbose:
+            for i in range(len(freqs)):
+                print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
         
         self.roachController.generateResonatorChannels(freqs)
         self.roachController.attenList = attens
         self.roachController.resIDs = resIDs
         self.roachController.phaseOffsList = phaseOffsList
         self.roachController.iqRatioList = iqRatioList
-        print 'new Freq: ', self.roachController.freqList
+        #print 'new Freq: ', self.roachController.freqList
 
         return True
     
