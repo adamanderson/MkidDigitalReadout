@@ -69,6 +69,7 @@ class writePhaseData():
         grp['data']=self.data
         dset=grp['data']
         dset.attrs['time']=dtime
+        dset.attrs['duration']=self.duration
         dset.attrs['frequency channel']=self.freqChan
         dset.attrs['frequencies']=self.freqs
         fileh.flush()
@@ -82,11 +83,79 @@ class writePhaseData():
             self.writeHDF5()		
     pass
 
+
+class ReadPhaseData():
+    def __init__(self):
+        pass
+
+    def readFile(self,fileName):
+        type=str(fileName[fileName.index(".")+1:])
+        type=type.strip()
+
+        if type=="dat":
+	         x=self.readAscii(fileName)
+           
+        elif type=="h5":
+            x=self.readHDF5(fileName)
+            
+        else:
+            print "wrong file extension type"
+            x={}
+        return x
+
+
+    def readAscii(self,fileName):
+        filen=fileName.strip()
+        fileh=open(filen,"r")
+        lines=fileh.readlines()
+
+        line1=lines[0].split()
+        pdate=line1[2]
+        ptime=line1[3]
+
+        line2=lines[1].split()
+
+        duration=float(line2[2][:-1])
+
+        line3=lines[2].split()
+        freqch=int(line3[2])
+
+        dindex=lines.index("data \n")
+        freqlist=lines[4:dindex]
+        freqs=np.float_(freqlist)	
+
+        datalist=lines[dindex+1:]
+        data=np.float_(datalist)
+
+        phasedata={'date': pdate,'time':ptime, 'duration':duration,'freqency channel':freqch, 'frequencies':freqs,'data':data}
+		
+        return  phasedata
+		
+    def readHDF5(self,fileName):
+        filen=fileName.strip()
+        hfile=h5.File(filen,'r')
+ 
+        data=hfile['Phase Data']['data'].value
+        freqs=hfile['Phase Data']['data'].attrs['frequencies']
+        freqch=hfile['Phase Data']['data'].attrs['frequency channel']
+        duration=hfile['Phase Data']['data'].attrs['duration']
+        pdtime=hfile['Phase Data']['data'].attrs['time']
+
+
+        pdate=pdtime[:pdtime.index(" ")]
+        ptime=pdtime[pdtime.index(" "):]
+
+        phasedata={'date': pdate,'time':ptime, 'duration':duration,'freqency channel':freqch, 'frequencies':freqs,'data':data}
+
+        return  phasedata
+        
+        
+    
 if __name__ == "__main__":
 
     data = np.random.random(100)
     freqs=np.arange(4.,5.,0.1)
-    duration=2
+    duration=2.5
     freqChan=1
     filename="testph"
 
@@ -98,6 +167,18 @@ if __name__ == "__main__":
     wp=writePhaseData(filename,"ascii",freqChan,freqs,duration,data)
     wp.Write()
 
-    # read files
+	# read files: 
+    a=ReadPhaseData()
+   
+    # from  ascii file
+    x=a.readFile('testph.dat')
+    print '\n read ascii file:'
+    print x
+    # from hdf5 file 
+    y=a.readFile('testph.h5')
+    print '\n read hdf5 file: '
+    print y
+
+
 
 	
