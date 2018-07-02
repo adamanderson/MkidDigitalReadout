@@ -20,7 +20,7 @@ reload(iTools)
 """
 import numpy as np
 import datetime, socket
-iToolsVersion = 0.2.0
+#iToolsVersion = 0.2.0
 
 import ConfigParser
 import RoachConnection
@@ -29,6 +29,8 @@ import IQPlotWindow
 reload(IQPlotWindow)
 import PhasePlotWindow
 reload(PhasePlotWindow)
+import WritePhaseData
+reload(WritePhaseData)
 import os
 
 def getItoolsVersion():
@@ -51,7 +53,11 @@ def setup(roachNumber, configFile):
     rchc.loadFreq()
     rchc.defineRoachLUTs()
     rchc.defineDacLUTs()
+    rchc.loadFIRs()
     return rchc
+
+def loadFIRs(rchc)
+    rchc.loadFIRs()
 
 def plotIQ(rchc):
     reload(IQPlotWindow)
@@ -79,32 +85,28 @@ def readPhasesTest(rchc):
         freqChan=freqChan, duration=duration, hostIP=hostIP, fabric_port=port)
     return data
 
-def doOnePhaseSnapshot(rchc, freqChan, duration, fileName, format="ascii"):
+def doOnePhaseSnapshot(rchc, freqChan, duration, outDir,fileName, format="ascii"):
     hostIP = rchc.config.get('HOST', 'hostIP')
     port = int(rchc.config.get(rchc.roachString,'port'))
 
     data = rchc.roachController.takePhaseStreamDataOfFreqChannel(
         freqChan=freqChan, duration=duration, hostIP=hostIP, fabric_port=port)
+    
+    freqs=rchc.roachController.freqChannels
+    
     # now write this data to fileName
+    if outDir is None:
+		outDir=cwd = os.getcwd()
+
     if fileName is not None:
-	#fileName="/home/mkids/MkidDigitalReadout/DataReadout/ChannelizerControls/test.dat"
-	cwd = os.getcwd()
-	fileName=os.path.join(cwd,"test.dat") 
-	dtime=str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")) 
-	sdtime="File created at "+dtime +"\n" 
-	sdur = "Duration : %6.3fs\n"%duration
-	schan= "Frequency Channel: %d \n"%freqChan
-	freq=rchc.roachController.freqChannels
-	print schan 
+		filename=os.path.join(outDir,fileName)
+    else: filename="test"
 	
-        print "now write to ",fileName, dtime
-        nfile = open(fileName,'wb')  
-	nfile.write(sdtime)
-	nfile.write(sdur)
-	nfile.write(schan)
-	nfile.write("Frequencies: \n")
-	np.savetxt(nfile, freq)
-	nfile.write("data \n")	     
-        np.savetxt(nfile, data)
+    if format is None :
+		format=="ascii"
+
+    wp=WritePhaseData.writePhaseData(filename,format,freqChan,freqs,duration,data)
+    wp.Write()
+	   
     return data
 
