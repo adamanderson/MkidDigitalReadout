@@ -30,8 +30,8 @@ import PhasePlotWindow
 reload(PhasePlotWindow)
 import WritePhaseData
 reload(WritePhaseData)
-import os
-
+import os, sys
+from PyQt4 import QtGui
 def getItoolsVersion():
     return iToolsVersion
 
@@ -55,11 +55,12 @@ def setup(roachNumber, configFile):
     rchc.loadFIRs()
     return rchc
 
-def loadFIRs(rchc)
+def loadFIRs(rchc):
     rchc.loadFIRs()
 
 def plotIQ(rchc):
     reload(IQPlotWindow)
+    print "iTools.py:  aa"
     iqPlotWindow = IQPlotWindow.IQPlotWindow(rchc)
     iqPlotWindow.show()
     return iqPlotWindow
@@ -74,7 +75,7 @@ def readPhasesTest(rchc):
     freqChan = 0
     duration = 1.0
 
-    ipaddress = rchc.config.get('HOST', 'ipaddress')
+    ipaddress = rchc.config.get(rchc.roachString, 'ipaddress')
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect((ipaddress,80))
     hostIP = s.getsockname()[0]
@@ -85,7 +86,10 @@ def readPhasesTest(rchc):
     return data
 
 def doOnePhaseSnapshot(rchc, freqChan, duration, outDir,fileName, format="ascii"):
-    hostIP = rchc.config.get('HOST', 'hostIP')
+    ipaddress = rchc.config.get(rchc.roachString, 'ipaddress')
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect((ipaddress,80))
+    hostIP = s.getsockname()[0]
     port = int(rchc.config.get(rchc.roachString,'port'))
 
     data = rchc.roachController.takePhaseStreamDataOfFreqChannel(
