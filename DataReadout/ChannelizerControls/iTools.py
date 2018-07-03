@@ -55,7 +55,7 @@ def setup(roachNumber, configFile):
     rchc.loadFIRs()
     return rchc
 
-def loadFIRs(rchc)
+def loadFIRs(rchc):
     rchc.loadFIRs()
 
 def plotIQ(rchc):
