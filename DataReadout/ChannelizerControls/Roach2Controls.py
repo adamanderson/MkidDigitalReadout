@@ -323,8 +323,7 @@ class Roach2Controls:
         if not hasattr(self,'LOFreq'):
             raise ValueError("Need to set LO freq by calling setLOFreq()")
         
-        if self.verbose:
-            print "Generating Dds Tones..."
+        print "Generating Dds Tones..."
         # quantize resonator tones to dds resolution
         # first figure out the actual frequencies being made by the DAC
         dacFreqList = freqChannels-self.LOFreq
