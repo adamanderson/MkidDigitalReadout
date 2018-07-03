@@ -2,7 +2,10 @@ import struct
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def getRandomPhasesSimple(freqs, deltaSeed=0):
+    """
+    """
     phases = np.zeros(len(freqs),dtype=np.double)
     seeds = np.zeros(len(freqs),dtype=np.uint32)
     np.random.seed(deltaSeed)
@@ -15,7 +18,6 @@ def getRandomPhasesSimple(freqs, deltaSeed=0):
     return {"phases":phases,"seeds":seeds}
 
 def getRandomPhases(freqs, deltaSeed=0):
-    print "Hello from randomPhases.getRandomPhases"
     phases = np.zeros(len(freqs),dtype=np.double)
     seeds = np.zeros(len(freqs),dtype=np.uint32)
     for i,freq in enumerate(freqs):
