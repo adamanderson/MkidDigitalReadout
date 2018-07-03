@@ -98,7 +98,9 @@ class RoachConnection():
         ddsTones = self.roachController.generateDdsTones()
         with open("ddsTones.pkl", 'wb') as handle:
             pickle.dump(ddsTones, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        print "RoachConnection.defineRoachLUTs:  call loadChanSelection"
         self.roachController.loadChanSelection()
+        print "RoachConnection.defineRoachLUTs:  call loadDdsLUT"
         self.roachController.loadDdsLUT()
         return True
     
