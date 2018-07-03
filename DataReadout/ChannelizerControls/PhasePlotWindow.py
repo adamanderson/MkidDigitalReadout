@@ -3,8 +3,7 @@ from PyQt4 import QtGui, uic
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
-import H5IO
-reload(H5IO)
+from scipy.signal import welch
 import WritePhaseData
 reload(WritePhaseData)
 dq = deque()
@@ -50,13 +49,13 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
-        self.recentPhaseData = None
+        self.recentPhases = None
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
         self.show()
         self.writer.start()
         self.worker.start()
-
+        
 
     def closeEvent(self, event):
         """
@@ -153,18 +152,24 @@ class PhasePlotWindow(QtGui.QMainWindow):
             #self.bottomPlot.clear()
             phases = self.recentPhases
             if self.wtp == "time":
+                self.topPlot.setLogMode(None, None)
                 self.topPlot.plot(phases)
                 self.topPlot.setLabel('left','radians')
-                #self.bottomPlot.plot(qList)
-                #self.bottomPlot.setLabel('left','Q (ADUs)')
-            elif self.wtp == "MagPhase":
-                iq = np.array(iList) + 1j*np.array(qList)
-                amplitude = np.absolute(iq)
-                angle = np.angle(iq,deg=True)
-                self.topPlot.plot(amplitude)
-                self.topPlot.setLabel('left','amplitude (ADUs)')
-                #self.bottomPlot.plot(angle)
-                #self.bottomPlot.setLabel('left','phase (degrees)')
+                self.topPlot.setLabel('bottom','time sample (ticks)')
+            elif self.wtp == "frequency":
+                self.topPlot.setLogMode(True, None)
+                x = phases
+                fs = 1e6 # Gustavo told us this is the sampling frequency.
+                window = 'hanning'
+                nperseg = len(x)
+                noverlap = 0
+                nfft = None
+                detrend = 'constant'
+                f,pxx = welch(x,fs,window,nperseg,noverlap,nfft,detrend,scaling='spectrum')
+                dbcPerHz = 10.0*np.log10(pxx)
+                self.topPlot.plot(f/1e3,dbcPerHz)
+                self.topPlot.setLabel('left','dBc/Hz')
+                self.topPlot.setLabel('bottom','frequency (kHz)')
             else:
                 print "do not understand self.wtp =",self.wtp
 
