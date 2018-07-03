@@ -5,6 +5,8 @@ import numpy as np
 from collections import deque
 import H5IO
 reload(H5IO)
+import WritePhaseData
+reload(WritePhaseData)
 dq = deque()
 
 class PhasePlotWindow(QtGui.QMainWindow):
@@ -112,6 +114,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.iFreqAtten = self.rc.roachController.attenList[index]
 
     def signalFromWorker(self,dict):
+        # The dict is defined as "dictToEmit" in the function "run" of the class "Worker"
         if "nIter" in dict.keys():
             label = str(dict['nIter'])
             if "nLoop" in dict.keys():
@@ -122,14 +125,21 @@ class PhasePlotWindow(QtGui.QMainWindow):
             dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
             self.callTakeData.setText(dText)
         if "phases" in dict.keys():
-            # actual data collected!
+            # actual data collected, so do two things:
+            # 1. plot data
             self.recentPhases = dict['phases']
+            self.updatePlots()
+
+            # 2. send to the write data queue, if writeData is True
             if self.writeData:
                 dq.append({
                         "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
-                        "recentPhases":self.recentPhases
+                        "recentPhases":self.recentPhases,
+                        "timestamp":dict['timestamp'],
+                        "freqChan":dict['freqChan'],
+                        "freqs":dict['freqs'],
+                        "duration":dict['duration']
                         })
-            self.updatePlots()
 
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
@@ -205,15 +215,21 @@ class Worker(QThread):
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect((ipaddress,80))
                 hostIP = s.getsockname()[0]
-                print "in PhasePlotWindow:  hostIP =",hostIP
-                
                 port = int(self.parent.rc.config.get(self.parent.rc.roachString,'port'))
+                freqChan = self.parent.iFreqIndex
+                timestamp = datetime.datetime.now()
+                duration = self.duration
                 phases = self.parent.rc.roachController.takePhaseStreamDataOfFreqChannel(
-                    freqChan=self.parent.iFreqIndex, # confirm that this does the right thing 
-                    duration=self.duration, 
+                    freqChan=freqChan, # confirm that this does the right thing 
+                    duration=duration, 
                     hostIP=hostIP, fabric_port=port)
                 self.parent.rc.roachController.verbose = rcVerbosity
-                self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop, "phases":phases})
+                freqs = self.parent.rc.roachController.freqChannels
+                dictToEmit = {"nIter":nIter, "nLoop":nLoop, "phases":phases,
+                              "timestamp":timestamp, "freqs":freqs, "duration":duration,
+                              "freqChan":freqChan
+                }
+                self.signalFromWorker.emit(dictToEmit)
                 nIter += 1
             else:
                 time.sleep(1.0)
@@ -235,19 +251,18 @@ class Writer(QThread):
         if value == "Stop":
             self.keepAlive = False
     def run(self):
-        fileHandle = open("phaseData.txt",'wb')
-        #h5Writer = H5IO.H5Writer()
         while self.keepAlive:
             while len(dq) > 0:
                 data = dq.popleft()
                 fileNamePrefix = data['fileNamePrefix']
                 recentPhases = data['recentPhases']
-                #h5Writer.write(recentPhases,fileNamePrefix)
-                np.savetxt(fileHandle, recentPhases)
+                timestamp = data['timestamp']
+                freqChan = data['freqChan']
+                freqs = data['freqs']
+                baseFileName = "%s-%s"%(fileNamePrefix, timestamp.strftime("%Y-%m-%dT%T.%f"))
+                duration = data['duration']
+                WritePhaseData.WritePhaseData(baseFileName, 'hdf5', freqChan, freqs, duration, recentPhases)
             time.sleep(1.0)
-        print "Writer:  call h5Writer.close()"
-        h5Writer.close()
-        print "Writer:  all done"
 
 def ssColor(color):
     retval = "QWidget {background-color:"
