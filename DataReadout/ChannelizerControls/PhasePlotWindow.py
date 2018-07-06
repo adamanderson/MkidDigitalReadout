@@ -6,7 +6,7 @@ from collections import deque
 from scipy.signal import welch
 import WritePhaseData
 reload(WritePhaseData)
-dq = deque()
+dqToWriter = deque()
 
 class PhasePlotWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
@@ -131,14 +131,14 @@ class PhasePlotWindow(QtGui.QMainWindow):
 
             # 2. send to the write data queue, if writeData is True
             if self.writeData:
-                dq.append({
-                        "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
-                        "recentPhases":self.recentPhases,
-                        "timestamp":dict['timestamp'],
-                        "freqChan":dict['freqChan'],
-                        "freqs":dict['freqs'],
-                        "duration":dict['duration']
-                        })
+                dqToWriter.append({
+                    "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
+                    "recentPhases":self.recentPhases,
+                    "timestamp":dict['timestamp'],
+                    "freqChan":dict['freqChan'],
+                    "freqs":dict['freqs'],
+                    "duration":dict['duration']
+                })
 
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
@@ -257,8 +257,8 @@ class Writer(QThread):
             self.keepAlive = False
     def run(self):
         while self.keepAlive:
-            while len(dq) > 0:
-                data = dq.popleft()
+            while len(dqToWriter) > 0:
+                data = dqToWriter.popleft()
                 fileNamePrefix = data['fileNamePrefix']
                 recentPhases = data['recentPhases']
                 timestamp = data['timestamp']
