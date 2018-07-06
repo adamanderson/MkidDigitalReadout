@@ -9,7 +9,7 @@ reload(WritePhaseData)
 dqToWriter = deque()
 
 class PhasePlotWindow(QtGui.QMainWindow):
-    signalToWorker = pyqtSignal(str)
+    signalToRoachReader = pyqtSignal(str)
     signalToWriter = pyqtSignal(str)
     def __init__(self, rc):
         super(PhasePlotWindow,self).__init__()
@@ -31,9 +31,9 @@ class PhasePlotWindow(QtGui.QMainWindow):
 
         #self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('PhasePlot')
-        self.worker = Worker(self)
-        self.worker.signalFromWorker.connect(self.signalFromWorker)
-        self.worker.duration = float(self.duration.currentText())
+        self.roachReader = RoachReader(self)
+        self.roachReader.signalFromRoachReader.connect(self.signalFromRoachReader)
+        self.roachReader.duration = float(self.duration.currentText())
 
         self.writer = Writer(self)
         
@@ -54,7 +54,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
         self.show()
         self.writer.start()
-        self.worker.start()
+        self.roachReader.start()
         
 
     def closeEvent(self, event):
@@ -67,7 +67,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         """
         Shut down the worker and close the window
         """
-        self.signalToWorker.emit("Stop")
+        self.signalToRoachReader.emit("Stop")
         self.signalToWriter.emit("Stop")
         self.timer.stop()
         self.close()
@@ -75,7 +75,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
     def durationChanged(self, index):
         value = float(self.duration.itemText(index))
         print "duration: value =",value
-        self.signalToWorker.emit("duration %f"%value)
+        self.signalToRoachReader.emit("duration %f"%value)
         
 
     def doRunState(self):
@@ -89,7 +89,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         else:
             self.runState.setText("Running")
             self.runState.setStyleSheet(ssColor("lightGreen"))
-        self.signalToWorker.emit(self.runState.text())
+        self.signalToRoachReader.emit(self.runState.text())
 
     def doWriteDataState(self):
         """
@@ -112,8 +112,8 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.iFreqFreq  = self.rc.roachController.freqList[index]
         self.iFreqAtten = self.rc.roachController.attenList[index]
 
-    def signalFromWorker(self,dict):
-        # The dict is defined as "dictToEmit" in the function "run" of the class "Worker"
+    def signalFromRoachReader(self,dict):
+        # The dict is defined as "dictToEmit" in the function "run" of the class "RoachReader"
         if "nIter" in dict.keys():
             label = str(dict['nIter'])
             if "nLoop" in dict.keys():
@@ -181,18 +181,18 @@ class PhasePlotWindow(QtGui.QMainWindow):
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
         self.datetimeClock.setText(dText)
 
-class Worker(QThread):
-    signalFromWorker = pyqtSignal(dict)
+class RoachReader(QThread):
+    signalFromRoachReader = pyqtSignal(dict)
     def __init__(self, parent, verbose=False):
         QThread.__init__(self, parent)
         self.parent = parent
         self.verbose = verbose
         self.keepAlive = True
-        self.parent.signalToWorker.connect(self.getSignal)
+        self.parent.signalToRoachReader.connect(self.getSignal)
 
     def getSignal(self,value):
         if value == "Stop":
-            print "Worker:  Stop received"
+            print "RoachReader:  Stop received"
             self.keepAlive = False
         elif value == "Running":
             self.isRunning = True
@@ -210,7 +210,7 @@ class Worker(QThread):
             if self.isRunning:
                 rcVerbosity = self.parent.rc.roachController.verbose
                 self.parent.rc.roachController.verbose = False
-                self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop, "callTakeData":datetime.datetime.now()})
+                self.signalFromRoachReader.emit({"nIter":nIter, "nLoop":nLoop, "callTakeData":datetime.datetime.now()})
                 #hostIP = self.parent.rc.config.get('HOST', 'hostIP')
 
                 # get the ipaddress of the roach board
@@ -234,12 +234,12 @@ class Worker(QThread):
                               "timestamp":timestamp, "freqs":freqs, "duration":duration,
                               "freqChan":freqChan
                 }
-                self.signalFromWorker.emit(dictToEmit)
+                self.signalFromRoachReader.emit(dictToEmit)
                 nIter += 1
             else:
                 time.sleep(1.0)
-            self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop})
-        print "Worker:  all done"
+            self.signalFromRoachReader.emit({"nIter":nIter, "nLoop":nLoop})
+        print "RoachReader:  all done"
 
 class Writer(QThread):
 
