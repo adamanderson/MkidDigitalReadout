@@ -80,9 +80,7 @@ class ReadPhaseData():
     Returns:  dictionary of "frequencies", "duration", "frequency channel", and "phases"
     """
     def __init__(self, fileName):
-        type=str(fileName[fileName.index(".")+1:])
-        type=type.strip()
-
+        type = os.path.splitext(fileName)[1][1:]
         if type=="dat":
 	         x=self.readAscii(fileName)
            
