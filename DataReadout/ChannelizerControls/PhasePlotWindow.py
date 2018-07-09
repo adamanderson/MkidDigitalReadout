@@ -3,13 +3,17 @@ from PyQt4 import QtGui, uic
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
-import H5IO
-reload(H5IO)
+from scipy.signal import welch
+import WritePhaseData
+reload(WritePhaseData)
 dq = deque()
+dqs = deque()
 
 class PhasePlotWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
     signalToWriter = pyqtSignal(str)
+    signalToStreamer = pyqtSignal(str)
+ 
     def __init__(self, rc):
         super(PhasePlotWindow,self).__init__()
         self.rc = rc
@@ -27,7 +31,6 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.writeDataState.clicked.connect(self.doWriteDataState)
         self.writeDataState.setText("Writing Data")
         self.doWriteDataState()
-
         #self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('PhasePlot')
         self.worker = Worker(self)
@@ -35,6 +38,16 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.worker.duration = float(self.duration.currentText())
 
         self.writer = Writer(self)
+
+	# stream data to a file to read by KST
+
+        self.streamToKST.clicked.connect(self.doStreamToKST)
+        self.streamToKST.setText("streaming paused")
+        self.stream2KST=False
+        self.kstfile=open("phase2kst.dat","wb")
+        self.streamer = Streamer(self)
+
+
         
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
@@ -48,13 +61,14 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
-        self.recentPhaseData = None
+        self.recentPhases = None
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
         self.show()
         self.writer.start()
         self.worker.start()
-
+        self.streamer.start()
+        
 
     def closeEvent(self, event):
         """
@@ -68,7 +82,9 @@ class PhasePlotWindow(QtGui.QMainWindow):
         """
         self.signalToWorker.emit("Stop")
         self.signalToWriter.emit("Stop")
+        self.signalToStreamer.emit("Stop")
         self.timer.stop()
+        
         self.close()
 
     def durationChanged(self, index):
@@ -105,6 +121,20 @@ class PhasePlotWindow(QtGui.QMainWindow):
             self.writeData = True
         self.signalToWriter.emit(self.writeDataState.text())
 
+    def doStreamToKST(self):
+        if self.streamToKST.text() == "streaming to KST":
+            self.streamToKST.setText("streaming paused")
+            self.streamToKST.setStyleSheet(ssColor("lightPink"))
+            self.signalToStreamer.emit("paused")
+            self.stream2KST=False 
+            print "Streaming to KST stopped"
+        else:
+            self.streamToKST.setText("streaming to KST")
+            self.streamToKST.setStyleSheet(ssColor("lightGreen"))
+            self.signalToStreamer.emit("streaming")
+            self.stream2KST=True 
+            print "Streaming to KST: file phase2kst.dat"
+
     def iFreqChanged(self, index):
         self.iFreqIndex = index
         self.iFreqResID = self.rc.roachController.resIDs[index]
@@ -112,6 +142,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.iFreqAtten = self.rc.roachController.attenList[index]
 
     def signalFromWorker(self,dict):
+        # The dict is defined as "dictToEmit" in the function "run" of the class "Worker"
         if "nIter" in dict.keys():
             label = str(dict['nIter'])
             if "nLoop" in dict.keys():
@@ -122,14 +153,23 @@ class PhasePlotWindow(QtGui.QMainWindow):
             dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
             self.callTakeData.setText(dText)
         if "phases" in dict.keys():
-            # actual data collected!
+            # actual data collected, so do two things:
+            # 1. plot data
             self.recentPhases = dict['phases']
+            self.updatePlots()
+            # 2. send to the write data queue, if writeData is True
             if self.writeData:
                 dq.append({
                         "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
-                        "recentPhases":self.recentPhases
+                        "recentPhases":self.recentPhases,
+                        "timestamp":dict['timestamp'],
+                        "freqChan":dict['freqChan'],
+                        "freqs":dict['freqs'],
+                        "duration":dict['duration']
                         })
-            self.updatePlots()
+
+            if self.stream2KST:
+                dqs.append({"phases":self.recentPhases})
 
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
@@ -143,18 +183,24 @@ class PhasePlotWindow(QtGui.QMainWindow):
             #self.bottomPlot.clear()
             phases = self.recentPhases
             if self.wtp == "time":
+                self.topPlot.setLogMode(None, None)
                 self.topPlot.plot(phases)
                 self.topPlot.setLabel('left','radians')
-                #self.bottomPlot.plot(qList)
-                #self.bottomPlot.setLabel('left','Q (ADUs)')
-            elif self.wtp == "MagPhase":
-                iq = np.array(iList) + 1j*np.array(qList)
-                amplitude = np.absolute(iq)
-                angle = np.angle(iq,deg=True)
-                self.topPlot.plot(amplitude)
-                self.topPlot.setLabel('left','amplitude (ADUs)')
-                #self.bottomPlot.plot(angle)
-                #self.bottomPlot.setLabel('left','phase (degrees)')
+                self.topPlot.setLabel('bottom','time sample (ticks)')
+            elif self.wtp == "frequency":
+                self.topPlot.setLogMode(True, None)
+                x = phases
+                fs = 1e6 # Gustavo told us this is the sampling frequency.
+                window = 'hanning'
+                nperseg = len(x)
+                noverlap = 0
+                nfft = None
+                detrend = 'constant'
+                f,pxx = welch(x,fs,window,nperseg,noverlap,nfft,detrend,scaling='spectrum')
+                dbcPerHz = 10.0*np.log10(pxx)
+                self.topPlot.plot(f/1e3,dbcPerHz)
+                self.topPlot.setLabel('left','dBc/Hz')
+                self.topPlot.setLabel('bottom','frequency (kHz)')
             else:
                 print "do not understand self.wtp =",self.wtp
 
@@ -205,15 +251,21 @@ class Worker(QThread):
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect((ipaddress,80))
                 hostIP = s.getsockname()[0]
-                print "in PhasePlotWindow:  hostIP =",hostIP
-                
                 port = int(self.parent.rc.config.get(self.parent.rc.roachString,'port'))
+                freqChan = self.parent.iFreqIndex
+                timestamp = datetime.datetime.now()
+                duration = self.duration
                 phases = self.parent.rc.roachController.takePhaseStreamDataOfFreqChannel(
-                    freqChan=self.parent.iFreqIndex, # confirm that this does the right thing 
-                    duration=self.duration, 
+                    freqChan=freqChan, # confirm that this does the right thing 
+                    duration=duration, 
                     hostIP=hostIP, fabric_port=port)
                 self.parent.rc.roachController.verbose = rcVerbosity
-                self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop, "phases":phases})
+                freqs = self.parent.rc.roachController.freqChannels
+                dictToEmit = {"nIter":nIter, "nLoop":nLoop, "phases":phases,
+                              "timestamp":timestamp, "freqs":freqs, "duration":duration,
+                              "freqChan":freqChan
+                }
+                self.signalFromWorker.emit(dictToEmit)
                 nIter += 1
             else:
                 time.sleep(1.0)
@@ -235,19 +287,43 @@ class Writer(QThread):
         if value == "Stop":
             self.keepAlive = False
     def run(self):
-        fileHandle = open("phaseData.txt",'wb')
-        #h5Writer = H5IO.H5Writer()
         while self.keepAlive:
             while len(dq) > 0:
                 data = dq.popleft()
                 fileNamePrefix = data['fileNamePrefix']
                 recentPhases = data['recentPhases']
-                #h5Writer.write(recentPhases,fileNamePrefix)
-                np.savetxt(fileHandle, recentPhases)
+                timestamp = data['timestamp']
+                freqChan = data['freqChan']
+                freqs = data['freqs']
+                baseFileName = "%s-%s"%(fileNamePrefix, timestamp.strftime("%Y-%m-%dT%T.%f"))
+                duration = data['duration']
+                WritePhaseData.WritePhaseData(baseFileName, 'hdf5', freqChan, freqs, duration, recentPhases)
             time.sleep(1.0)
-        print "Writer:  call h5Writer.close()"
-        h5Writer.close()
-        print "Writer:  all done"
+
+
+class Streamer(QThread):
+    def __init__(self,parent):
+        QThread.__init__(self,parent)
+        self.parent = parent
+        self.parent.signalToStreamer.connect(self.getSignal)
+        self.streamToKST = False
+        self.keepStreamAlive = True
+        self.kstfile = parent.kstfile
+
+    def getSignal(self, value):
+        #print "Streamer.getSignal:  value =",value
+        if value == "Stop":
+            keepStreamAlive=False
+
+    def run(self):
+        while self.keepStreamAlive:
+            while len(dqs) > 0:
+                sdata = dqs.pop()
+                dphases = sdata['phases']
+                phaseEnd=dphases[:1000]
+                np.savetxt(self.kstfile, phaseEnd)
+            time.sleep(1.0)
+
 
 def ssColor(color):
     retval = "QWidget {background-color:"
