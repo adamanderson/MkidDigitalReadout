@@ -9,9 +9,10 @@ dq = deque()
 
 class ResonancePlotWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
-    signalToWriter = pyqtSignal(str)
     def __init__(self, rc):
         super(ResonancePlotWindow,self).__init__()
+        self.stopping = False
+        self.iqData = None
         self.rc = rc
         thisDir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(thisDir,'ResonancePlotWidget.ui'), self)
@@ -20,22 +21,15 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.bottomPlot = self.graphicsLayoutWidget.addPlot()
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
-        self.nPoints.currentIndexChanged.connect(self.nPointsChanged)
         self.runState.clicked.connect(self.doRunState)
         self.runState.setText("Running")
         self.doRunState()
-        self.writeDataState.clicked.connect(self.doWriteDataState)
-        self.writeDataState.setText("Writing Data")
-        self.doWriteDataState()
 
         #self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('ResonancePlot')
         self.worker = Worker(self)
         self.worker.signalFromWorker.connect(self.signalFromWorker)
-        self.worker.nPoints = int(self.nPoints.currentText())
 
-        self.writer = Writer(self)
-        
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(500) 
@@ -52,8 +46,6 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
         self.show()
-        self.writer.start()
-        self.worker.start()
 
 
     def closeEvent(self, event):
@@ -66,44 +58,24 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         """
         Shut down the worker and close the window
         """
-        self.signalToWorker.emit("Stop")
-        self.signalToWriter.emit("Stop")
-        self.timer.stop()
-        self.close()
-
-    def nPointsChanged(self, index):
-        value = int(self.nPoints.itemText(index))
-        print "nPointsChanged: value =",value
-        self.signalToWorker.emit("nPoints %d"%value)
-        
+        if not self.stopping:
+            self.stopping = True
+            self.signalToWorker.emit("StopFromDoStop")
+            self.timer.stop()
+            self.close()
 
     def doRunState(self):
         """
-        Connected to runState.clicked.  Toggle between "Running" and "Paused",
+        Connected to runState.clicked.  Toggle between "Running" and "Waiting",
         and then signal the worker the new state
         """
         if self.runState.text() == "Running":
-            self.runState.setText("Paused")
+            self.runState.setText("Waiting")
             self.runState.setStyleSheet(ssColor("lightPink"))
         else:
             self.runState.setText("Running")
             self.runState.setStyleSheet(ssColor("lightGreen"))
         self.signalToWorker.emit(self.runState.text())
-
-    def doWriteDataState(self):
-        """
-        Connected to writeData.clicked.  Toggle between "Writing Data" and "Paused Data Writing",
-        and then signal the Writer the new state
-        """
-        if self.writeDataState.text() == "Writing Data":
-            self.writeDataState.setText("Paused Data Writing")
-            self.writeDataState.setStyleSheet(ssColor("lightPink"))
-            self.writeData = False
-        else:
-            self.writeDataState.setText("Writing Data")
-            self.writeDataState.setStyleSheet(ssColor("lightGreen"))
-            self.writeData = True
-        self.signalToWriter.emit(self.writeDataState.text())
 
     def iFreqChanged(self, index):
         self.iFreqIndex = index
@@ -175,61 +147,16 @@ class Worker(QThread):
         self.parent.signalToWorker.connect(self.getSignal)
 
     def getSignal(self,value):
-        if value == "Stop":
-            print "Worker:  Stop received"
-            self.keepAlive = False
-        elif value == "Running":
-            self.isRunning = True
-        elif value == "Paused":
-            self.isRunning = False
-        elif str(value).startswith("nPoints"):
-            self.nPoints = int(str(value).split()[1])
-            print "hello:  self.nPoints=",self.nPoints
-    def run(self):
-        nIter = 0
-        nLoop = 0
-        self.isRunning = False
-        while self.keepAlive:
-            nLoop += 1
-            if self.isRunning:
-                rcVerbosity = self.parent.rc.roachController.verbose
-                self.parent.rc.roachController.verbose = False
-                self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop, "callTakeAvgIQDataTime":datetime.datetime.now()})
-                iqOnRes = self.parent.rc.roachController.takeAvgIQData(self.nPoints)
-                self.parent.rc.roachController.verbose = rcVerbosity
-                self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop, "iqOnRes":iqOnRes})
-                nIter += 1
-            else:
-                time.sleep(1.0)
-            self.signalFromWorker.emit({"nIter":nIter, "nLoop":nLoop})
-        print "Worker:  all done"
-
-class Writer(QThread):
-
-    def __init__(self, parent, verbose=False):
-        QThread.__init__(self, parent)
-        self.parent = parent
-        self.verbose = verbose
-        self.keepAlive = True
-        self.writeData = False
-        self.parent.signalToWriter.connect(self.getSignal)
-
-    def getSignal(self, value):
-        print "Writer.getSignal:  value =",value
-        if value == "Stop":
-            self.keepAlive = False
-    def run(self):
-        h5Writer = H5IO.H5Writer()
-        while self.keepAlive:
-            while len(dq) > 0:
-                data = dq.popleft()
-                fileNamePrefix = data['fileNamePrefix']
-                recentIQData = data['recentIQData']
-                h5Writer.write(recentIQData,fileNamePrefix)
-            time.sleep(1.0)
-        print "Writer:  call h5Writer.close()"
-        h5Writer.close()
-        print "Writer:  all done"
+        print "Worker.getSignal:  value=",value
+        #if value == "Stop":
+        #    self.keepAlive = False
+        #elif value == "Running":
+        #    self.isRunning = True
+        #elif value == "Paused":
+        #    self.isRunning = False
+        #elif str(value).startswith("nPoints"):
+        #    self.nPoints = int(str(value).split()[1])
+        #    print "hello:  self.nPoints=",self.nPoints
 
 def ssColor(color):
     retval = "QWidget {background-color:"

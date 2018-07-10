@@ -78,26 +78,6 @@
         </property>
        </spacer>
       </item>
-      <item>
-       <widget class="QLineEdit" name="fileNamePrefix">
-        <property name="text">
-         <string>iqData</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="writeDataState">
-        <property name="minimumSize">
-         <size>
-          <width>180</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>writeDataState?</string>
-        </property>
-       </widget>
-      </item>
      </layout>
     </item>
     <item>
@@ -137,43 +117,6 @@
       </item>
       <item>
        <widget class="QComboBox" name="iFreq"/>
-      </item>
-      <item>
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string>nPoints</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="nPoints">
-        <property name="minimumSize">
-         <size>
-          <width>80</width>
-          <height>0</height>
-         </size>
-        </property>
-        <item>
-         <property name="text">
-          <string>16</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>64</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>256</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>1024</string>
-         </property>
-        </item>
-       </widget>
       </item>
       <item>
        <widget class="QPushButton" name="runState">
