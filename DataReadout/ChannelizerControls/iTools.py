@@ -28,6 +28,8 @@ import IQPlotWindow
 reload(IQPlotWindow)
 import PhasePlotWindow
 reload(PhasePlotWindow)
+import ResonancePlotWindow
+reload(ResonancePlotWindow)
 import WritePhaseData
 reload(WritePhaseData)
 import os, sys, warnings
@@ -84,6 +86,12 @@ def plotPhases(rchc):
     phasePlotWindow = PhasePlotWindow.PhasePlotWindow(rchc)
     phasePlotWindow.show()
     return phasePlotWindow
+
+def plotResonances(rchc):
+    reload(ResonancePlotWindow)
+    resonancePlotWindow = ResonancePlotWindow.ResonancePlotWindow(rchc)
+    resonancePlotWindow.show()
+    return resonancePlotWindow
 
 def readPhasesTest(rchc):
     freqChan = 0
