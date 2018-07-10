@@ -1469,6 +1469,7 @@ class Roach2Controls:
                         ch_freq = int(np.atleast_1d(ch_freqs)[np.where(np.atleast_1d(ch_stream)==ch)])     # The freq channel of the resonator corresponding to ch/stream
                         toWriteStr = struct.pack('>{}{}'.format(len(firInts[ch_freq]),'l'), *firInts[ch_freq])
                         print ' In Roach2Controls:  ch:'+str(ch_freq)+' ch/stream: '+str(ch)+'/'+str(stream)+"\r",
+                        sys.stdout.flush()
                     else:
                         toWriteStr=zeroWriteStr
                     self.fpga.blindwrite(self.params['firTapsMem_regs'][stream], toWriteStr,0)
@@ -1828,7 +1829,7 @@ class Roach2Controls:
         #plt.show()
 
     
-    def performIQSweep(self,startLOFreq,stopLOFreq,stepLOFreq):
+    def performIQSweep(self,startLOFreq,stopLOFreq,stepLOFreq, verbose=False):
         """
         Performs a sweep over the LO frequency.  Records 
         one IQ point per channel per freqeuency; stores in
@@ -1871,8 +1872,8 @@ class Roach2Controls:
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
         
         for i in range(len(LOFreqs)):
-            if self.verbose:
-                print 'Sweeping LO ' + str(LOFreqs[i]) + ' MHz'
+            if self.verbose or verbose:
+                print 'Sweeping LO ' + "%3d/%3d %8.3f MHz \r"%(i,len(LOFreqs),LOFreqs[i]),
             self.loadLOFreq(LOFreqs[i])
             #time.sleep(0.01)    # I dunno how long it takes to set the LO
             if(i%2==0):
@@ -1885,7 +1886,9 @@ class Roach2Controls:
                     iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
                 iqData = np.append(iqData, iqPt,1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
-        
+        if self.verbose or verbose:
+                print 'Done sweeping LO'
+
         # if odd number of LO steps then we still need to read out half of the last buffer
         if len(LOFreqs) % 2 == 1:
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)

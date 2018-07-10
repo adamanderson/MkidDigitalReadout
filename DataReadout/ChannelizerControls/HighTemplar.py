@@ -74,7 +74,7 @@ class HighTemplar(QMainWindow):
         self.roaches = []
         self.roachThreads=[]
         for i in self.roachNums:
-            roach=RoachStateMachine(i,self.config)
+            roach=RoachStateMachine(i,self.config, verbose=False)
             thread = QtCore.QThread(parent=self)                                        # if parent isn't specified then need to be careful to destroy thread
             thread.setObjectName("Roach_"+str(i))                                       # process name
             roach.finishedCommand_Signal.connect(partial(self.catchRoachSignal,i))      # call catchRoachSignal when roach finishes a command

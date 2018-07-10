@@ -88,13 +88,14 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         statesString=['Undefined', 'In Progress', 'Completed', 'Error']
         return statesString[state]
     
-    def __init__(self, roachNumber, config):
+    def __init__(self, roachNumber, config, verbose=True):
         """
         INPUTS:
             roachNumber - 
             config - ConfigParser Object holding all the parameters needed
         """
         super(RoachStateMachine, self).__init__()
+        self.verbose = verbose
         self.state=[RoachStateMachine.UNDEFINED]*RoachStateMachine.NUMCOMMANDS    # This holds the state for each command type
         self.num=int(roachNumber)
         self.commandQueue=Queue()
@@ -104,7 +105,9 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         FPGAParamFile = self.config.get('Roach '+str(self.num),'FPGAParamFile')
         ip = self.config.get('Roach '+str(self.num),'ipaddress')
         
-        self.roachController = Roach2Controls(ip,FPGAParamFile,True,False)
+        self.roachController = Roach2Controls(ip,FPGAParamFile,
+                                              verbose=False,
+                                              debug=False)
     
     def addCommands(self,command):
         """
@@ -241,7 +244,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         divides the resonators into streams
         '''
         try:
-            print 'old Freq: ', self.roachController.freqList
+            if self.verbose:
+                print 'old Freq: ', self.roachController.freqList
         except: pass
         fn = self.config.get('Roach '+str(self.num),'freqfile')
         fn2=fn.rsplit('.',1)[0]+'_NEW.'+ fn.rsplit('.',1)[1]         # Check if ps_freq#_NEW.txt exists
@@ -273,15 +277,17 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         attens = attens[argsSorted]
         phaseOffsList = iqRatioList[argsSorted]
         iqRatioList = iqRatioList[argsSorted]
-        for i in range(len(freqs)):
-            print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
+        if self.verbose:
+            for i in range(len(freqs)):
+                print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
         
         self.roachController.generateResonatorChannels(freqs)
         self.roachController.attenList = attens
         self.roachController.resIDs = resIDs
         self.roachController.phaseOffsList = phaseOffsList
         self.roachController.iqRatioList = iqRatioList
-        print 'new Freq: ', self.roachController.freqList
+        if self.verbose:
+            print 'new Freq: ', self.roachController.freqList
 
         return True
     
@@ -487,10 +493,10 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         phaseList = np.copy(self.roachController.ddsPhaseList)
         #channels, streams = self.roachController.freqChannelToStreamChannel()
         channels, streams = self.roachController.getStreamChannelFromFreqChannel()
-        for i in range(len(channels)):
-            print channels[i],streams[i]
-            print phaseList.shape
-            phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
+        if self.verbose:
+            for i in range(len(channels)):
+                print "i=",i," channels[i]=",channels[i]," streams[i]=",streams[i], "phaseList.shape=",phaseList.shape
+                phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
         
         
         #for i in range(len(self.roachController.freqList)):

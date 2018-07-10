@@ -93,6 +93,18 @@ def plotResonances(rchc):
     resonancePlotWindow.show()
     return resonancePlotWindow
 
+def performIQSweep(rchc):
+    LO_freq = rchc.roachController.LOFreq
+    LO_span = rchc.config.getfloat(rchc.roachString,'sweeplospan')
+    LO_step = rchc.config.getfloat(rchc.roachString,'sweeplostep')
+    LO_start = LO_freq - LO_span/2.
+    LO_end = LO_freq + LO_span/2.
+    iqData = rchc.roachController.performIQSweep(LO_start/1.e6,
+                                                 LO_end/1.e6,
+                                                 LO_step/1.e6,
+                                                 verbose=True)
+    return iqData
+
 def readPhasesTest(rchc):
     freqChan = 0
     duration = 1.0
