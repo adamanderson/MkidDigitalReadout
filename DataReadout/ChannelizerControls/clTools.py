@@ -1,56 +1,29 @@
 """
-Help interactive work with the roach board.
+Command line tools
 
 If you add a function here, "reload(iTools)" is your friend.
 
 Sample use from iPython:
 
-> import iTools
-> rchc = iTools.setup(100, 'chris.cfg') # rchc is a handle to a RoachConnection.
+> import clTools
+> rchc = clTools.setup(100, 'chris.cfg') # rchc is a handle to a RoachConnection.
+> data = clTools.readDataTest()
 > iTools.plotIQ(rchc) # plot average IQ values as a function of time
 
-and if you make changes to code:
+and if you make changes to code in this file:
 
-reload(iTools)
-
-> avgIQData = rchc.roachController.takeAvgIQData(100)
-# This is a dictionary of 'I' and 'Q' of the 100 measurements at each frequency.
-
+> reload(clTools)
 
 """
+import os, sys, warnings
 import numpy as np
 import datetime, socket
-iToolsVersion = "0.2.0"
 import ConfigParser
 import RoachConnection
 reload(RoachConnection)
-import IQPlotWindow
-reload(IQPlotWindow)
-import PhasePlotWindow
-reload(PhasePlotWindow)
-import ResonancePlotWindow
-reload(ResonancePlotWindow)
 import WritePhaseData
 reload(WritePhaseData)
-import os, sys, warnings
-from PyQt4 import QtGui
-
-if QtGui.QApplication.type() == 0:
-    print """
-Warning:  QtGui.QApplication is not running.
-QT Windows will not work, and the entire session will crash if you try.
-Here are two things you could do:
-1)  Start ipython like this:  'ipython --gui=qt'
-or
-2)  Add this line:
-c.TerminalIPythonApp.gui = 'qt'
-to your ipython configuration file, which is probably 
-~/.python/profile_default/ipython_config.py 
-    """
     
-def getItoolsVersion():
-    return iToolsVersion
-
 def connect(roachNumber, configFile):
     rchc = RoachConnection.RoachConnection(roachNumber, configFile)
     return rchc
@@ -74,24 +47,6 @@ def setup(roachNumber, configFile):
 def loadFIRs(rchc):
     rchc.loadFIRs()
 
-def plotIQ(rchc):
-    reload(IQPlotWindow)
-    print "iTools.py:  aa"
-    iqPlotWindow = IQPlotWindow.IQPlotWindow(rchc)
-    iqPlotWindow.show()
-    return iqPlotWindow
-
-def plotPhases(rchc):
-    reload(PhasePlotWindow)
-    phasePlotWindow = PhasePlotWindow.PhasePlotWindow(rchc)
-    phasePlotWindow.show()
-    return phasePlotWindow
-
-def plotResonances(rchc):
-    reload(ResonancePlotWindow)
-    resonancePlotWindow = ResonancePlotWindow.ResonancePlotWindow(rchc)
-    resonancePlotWindow.show()
-    return resonancePlotWindow
 
 def performIQSweep(rchc):
     LO_freq = rchc.roachController.LOFreq
