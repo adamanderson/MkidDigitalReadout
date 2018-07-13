@@ -1,10 +1,12 @@
-import datetime, time, os
+import datetime, time, os, json_tricks, pickle
 from PyQt4 import QtGui, uic
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
 import H5IO
 reload(H5IO)
+import clTools
+reload(clTools)
 dq = deque()
 
 class ResonancePlotWindow(QtGui.QMainWindow):
@@ -83,26 +85,15 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.iFreqFreq  = self.rc.roachController.freqList[index]
         self.iFreqAtten = self.rc.roachController.attenList[index]
 
-    def signalFromWorker(self,dict):
-        if "nIter" in dict.keys():
-            label = str(dict['nIter'])
-            if "nLoop" in dict.keys():
-                label += "/"+str(dict['nLoop'])
-                self.loopLabel.setText(label)
-        if "callTakeAvgIQDataTime" in dict.keys():
-            n = dict["callTakeAvgIQDataTime"]
-            dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
-            self.callIQTakeAvgTime.setText(dText)
-        if "iqOnRes" in dict.keys():
-            # actual data collected!
-            self.recentIQData = dict['iqOnRes']
-            if self.writeData:
-                dq.append({
-                        "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
-                        "recentIQData":self.recentIQData
-                        })
-            self.updatePlots()
+    def signalFromWorker(self,data):
+        print "begin signalFromWorker"
+        print "type of data is ",type(data)
+        print "data.keys()=",data.keys()
 
+        handle = open('IQDataDict.json','w')
+        json_tricks.dump(data, handle)
+        handle.close()
+        
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.updatePlots()
@@ -148,15 +139,19 @@ class Worker(QThread):
 
     def getSignal(self,value):
         print "Worker.getSignal:  value=",value
-        #if value == "Stop":
-        #    self.keepAlive = False
-        #elif value == "Running":
-        #    self.isRunning = True
-        #elif value == "Paused":
-        #    self.isRunning = False
-        #elif str(value).startswith("nPoints"):
-        #    self.nPoints = int(str(value).split()[1])
-        #    print "hello:  self.nPoints=",self.nPoints
+        if value == "Running":
+            timestamp = datetime.datetime.now()
+            print "Now call clTools.performIQSweep"
+            t0 = datetime.datetime.now()
+            iqData = clTools.performIQSweep(self.parent.rc)
+            t1 = datetime.datetime.now()
+            dt = t1-t0
+            print "dt =",dt
+            data = {
+                'timestamp':timestamp,
+                'iqData':iqData
+            }
+            self.signalFromWorker.emit(data)
 
 def ssColor(color):
     retval = "QWidget {background-color:"
