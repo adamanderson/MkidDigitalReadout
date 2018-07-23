@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.signal import welch
+import matplotlib.pyplot as plt
+
 class PlotProcessor():
     def __init__(self, domain="time"):
         self.domain = domain # time or frequency
@@ -118,17 +120,19 @@ if __name__ == "__main__":
     pf.reset()
     #default just return the spectrum
     for i in range(5):
-        x=np.arange(0,2*np.pi,0.02*np.pi)
+        x=np.arange(0,2*np.pi,0.01*np.pi)
         y=np.sin(i*x)
-        v = pf.process(y)
+        v = pf.process(y)["spectrum"]
 
     pf.setMode("cma")
     # return the cumulative average spectrum 
     for i in range(5):
-        x=np.arange(0,2*np.pi,0.02*np.pi)
-        y=np.sin(i*x)
-        v = pf.process(y)    
- #       print v["spectrum"]
+        x=np.arange(0,2*np.pi,0.01*np.pi)
+        y=np.sin(i*10*x)
+        v = pf.process(y)["spectrum"]
+    plt.plot(v)
+    plt.show()
+ #       print v
         
 
         
