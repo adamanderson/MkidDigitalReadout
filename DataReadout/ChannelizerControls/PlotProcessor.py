@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.signal import welch
 import matplotlib.pyplot as plt
+from PyQt4.QtCore import QThread, pyqtSignal, QTimer
+
 
 class PlotProcessor():
     def __init__(self, domain="time"):
@@ -86,7 +88,7 @@ class PlotProcessor():
 
         
 if __name__ == "__main__":
-    pp = PlotProcessor()
+    pp = PlotProcessor("time")
 
     # Default:  just return the values
     for i in range(5):
