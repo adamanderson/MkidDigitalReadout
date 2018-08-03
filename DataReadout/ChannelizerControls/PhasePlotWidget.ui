@@ -19,7 +19,7 @@
      <x>0</x>
      <y>394</y>
      <width>721</width>
-     <height>72</height>
+     <height>76</height>
     </rect>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -66,6 +66,31 @@
        </widget>
       </item>
       <item>
+       <widget class="QComboBox" name="howToAve">
+        <property name="minimumSize">
+         <size>
+          <width>80</width>
+          <height>0</height>
+         </size>
+        </property>
+        <item>
+         <property name="text">
+          <string>none</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>cma</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>ema</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item>
        <spacer name="horizontalSpacer_3">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -86,19 +111,6 @@
        </widget>
       </item>
       <item>
-       <spacer name="horizontalSpacer_2">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
        <widget class="QLineEdit" name="fileNamePrefix">
         <property name="text">
          <string>phaseData</string>
@@ -107,12 +119,6 @@
       </item>
       <item>
        <widget class="QPushButton" name="writeDataState">
-        <property name="minimumSize">
-         <size>
-          <width>180</width>
-          <height>0</height>
-         </size>
-        </property>
         <property name="text">
          <string>writeDataState?</string>
         </property>
