@@ -11,8 +11,9 @@ import pdb
 #import PlotProcessor
 #reload(PlotProcessor)
 
-Nevents=100000
-roachData=False
+
+roachData=False # True to read Roach data, False to test with generated events.
+Nevents=100000  # number of generated events for testing.
 
 dqs = deque()
 dqToWriter = deque()
@@ -268,7 +269,6 @@ class RoachReader(QThread):
                     
                 else:
                     # test data for debugging
-                    print Nevents
                     freqChan = 10
                     timestamp = datetime.datetime.now()
                     duration = 2.0
