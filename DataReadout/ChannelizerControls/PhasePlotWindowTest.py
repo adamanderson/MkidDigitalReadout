@@ -12,8 +12,8 @@ import pdb
 #reload(PlotProcessor)
 
 
-roachData=False # True to read Roach data, False to test with generated events.
-Nevents=100000  # number of generated events for testing.
+roachData=True # True to read Roach data, False to test with generated events.
+Nevents=0  # number of generated events for testing.
 
 dqs = deque()
 dqToWriter = deque()
@@ -493,8 +493,12 @@ class PlotProcessor(QThread):
             time.sleep(0.01)
 
 if __name__ == "__main__":
+    roachData=False # True to read Roach data, False to test with generated events.
+    Nevents=100000  # number of generated events for testing.
+    
     app = QtGui.QApplication(sys.argv)
     rchc=100
+    
     phasePlotWindow = PhasePlotWindow(rchc)
     print "--A"
     phasePlotWindow.show()
