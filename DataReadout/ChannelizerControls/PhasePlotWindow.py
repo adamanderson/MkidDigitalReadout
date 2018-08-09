@@ -4,74 +4,98 @@ from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
 from scipy.signal import welch
+import sys
 import WritePhaseData
 reload(WritePhaseData)
-dq = deque()
+import pdb
+#import PlotProcessor
+#reload(PlotProcessor)
+
+
+roachData = True
+# True to read Roach data, False to test with generated events.
+sFreq =1e6
 dqs = deque()
 dqToWriter = deque()
+dqToProcessor = deque()
 
 class PhasePlotWindow(QtGui.QMainWindow):
     signalToRoachReader = pyqtSignal(str)
     signalToWriter = pyqtSignal(str)
     signalToStreamer = pyqtSignal(str)
- 
+    signalToProcessor = pyqtSignal(dict)
+    
     def __init__(self, rc):
         super(PhasePlotWindow,self).__init__()
         self.rc = rc
         thisDir = os.path.dirname(os.path.abspath(__file__))
+       # uic.loadUi('PhasePlotWidget.ui', self)
         uic.loadUi(os.path.join(thisDir,'PhasePlotWidget.ui'), self)
         self.topPlot =    self.graphicsLayoutWidget.addPlot()
-        #self.graphicsLayoutWidget.nextRow()
         #self.bottomPlot = self.graphicsLayoutWidget.addPlot()
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
+        self.duration_value = float(self.duration.currentText())
         self.duration.currentIndexChanged.connect(self.durationChanged)
         self.runState.clicked.connect(self.doRunState)
         self.runState.setText("Running")
         self.doRunState()
+        self.nPlot=5000
+
+
         self.writeDataState.clicked.connect(self.doWriteDataState)
         self.writeDataState.setText("Writing Data")
         self.doWriteDataState()
-        #self.setGeometry(300, 300, 250, 150)
+
+        self.reset.clicked.connect(self.doReset)
+
         self.setWindowTitle('PhasePlot')
         self.roachReader = RoachReader(self)
         self.roachReader.signalFromRoachReader.connect(self.signalFromRoachReader)
         self.roachReader.duration = float(self.duration.currentText())
-
         self.writer = Writer(self)
 
+        
+        self.plotprocessor = PlotProcessor(self)
+        self.plotprocessor.signalFromProcessor.connect(self.updatePlots)
+        
 	# stream data to a file to read by KST
+        self.dNsamples.setText("")
+        self.dNevents.setText("")
 
         self.streamToKST.clicked.connect(self.doStreamToKST)
         self.streamToKST.setText("streaming paused")
         self.stream2KST=False
         self.kstfile=open("phase2kst.dat","wb")
         self.streamer = Streamer(self)
-
-
-        
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
-        self.timer.start(500) 
-        items = []
-        for resID,resFreq,atten in zip(rc.roachController.resIDs,
-                                 rc.roachController.freqList,
-                                 rc.roachController.attenList):
-            items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
-        self.iFreq.addItems(items)
+        self.timer.start(500)
+      
+        
+        if roachData is True:
+            items = []
+            for resID,resFreq,atten in zip(rc.roachController.resIDs,
+                                     rc.roachController.freqList,
+                                     rc.roachController.attenList):
+                items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
+                
+            self.iFreq.addItems(items)
+    
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
         self.recentPhases = None
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
+        self.amode = str(self.howToAve.currentText()).strip()
+        self.howToAve.currentIndexChanged.connect(self.howToAveChanged)
         self.show()
         self.writer.start()
-        #self.worker.start()
         self.streamer.start()
         self.roachReader.start()
+        self.plotprocessor.start()
         
-
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -82,18 +106,23 @@ class PhasePlotWindow(QtGui.QMainWindow):
         """
         Shut down the worker and close the window
         """
-        self.signalToRoachReader.emit("Stop")
-        self.signalToWriter.emit("Stop")
-        self.signalToStreamer.emit("Stop")
+        self.signalToRoachReader.emit('Stop')
+        self.signalToWriter.emit('Stop')
+        self.signalToStreamer.emit('Stop')
+        self.signalToProcessor.emit({'processorLive':""})
         self.timer.stop()
         
         self.close()
+        
+    def doReset(self):
+        self.signalToProcessor.emit({"reset":'reset'})
 
     def durationChanged(self, index):
-        value = float(self.duration.itemText(index))
-        print "duration: value =",value
-        self.signalToRoachReader.emit("duration %f"%value)
-        
+        self.duration_value = float(self.duration.itemText(index))
+    
+        self.signalToRoachReader.emit("duration %f"%self.duration_value)
+        self.signalToProcessor.emit({"duration":self.duration_value})
+  #      self.processData()
 
     def doRunState(self):
         """
@@ -139,90 +168,58 @@ class PhasePlotWindow(QtGui.QMainWindow):
 
     def iFreqChanged(self, index):
         self.iFreqIndex = index
-        self.iFreqResID = self.rc.roachController.resIDs[index]
-        self.iFreqFreq  = self.rc.roachController.freqList[index]
-        self.iFreqAtten = self.rc.roachController.attenList[index]
-
+        
+        if roachData is True:
+            self.iFreqResID = self.rc.roachController.resIDs[index]
+            self.iFreqFreq  = self.rc.roachController.freqList[index]
+            self.iFreqAtten = self.rc.roachController.attenList[index]
+    
     def signalFromWorker(self,dict):
         # The dict is defined as "dictToEmit" in the function "run" of the class "Worker
         pass
+    
     def signalFromRoachReader(self,dict):
-        # The dict is defined as "dictToEmit" in the function "run" of the class "RoachReader"
-        if "nIter" in dict.keys():
-            label = str(dict['nIter'])
-            if "nLoop" in dict.keys():
-                label += "/"+str(dict['nLoop'])
-                self.loopLabel.setText(label)
-        if "callTakeData" in dict.keys():
-            n = dict["callTakeData"]
-            dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
-            self.callTakeData.setText(dText)
-        if "phases" in dict.keys():
-            # actual data collected, so do two things:
-            # 1. plot data
-            self.recentPhases = dict['phases']
-            self.updatePlots()
-
-            # 2. send to the write data queue, if writeData is True
-            if self.writeData:
-                dq.append({
-                        "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
-                        "recentPhases":self.recentPhases,
-                        "timestamp":dict['timestamp'],
-                        "freqChan":dict['freqChan'],
-                        "freqs":dict['freqs'],
-                        "duration":dict['duration']
-                        })
-
-            if self.stream2KST:
-                dqs.append({"phases":self.recentPhases})
-
-            # 2. send to the write data queue, if writeData is True
-            if self.writeData:
-                dqToWriter.append({
-                    "fileNamePrefix":str(self.fileNamePrefix.text()).strip(),
-                    "recentPhases":self.recentPhases,
-                    "timestamp":dict['timestamp'],
-                    "freqChan":dict['freqChan'],
-                    "freqs":dict['freqs'],
-                    "duration":dict['duration']
-                })
-
+        pass
+    
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
-        self.updatePlots()
+        self.processData()
 
-    def updatePlots(self):
+    def howToAveChanged(self, index):
+        self.amode = str(self.howToAve.currentText()).strip()
+        self.processData()      
+
+    def processData(self):
         # self.recentPhases is a dictionary of:  phases
-        # where phases is a 1d numpy array of phases in radians
-        if self.recentPhases is not None:
+        prDict={"wtp":self.wtp,"amode":self.amode,"processorLive":True}
+        self.signalToProcessor.emit(prDict)
+
+    def updatePlots(self,prcsEvts):
+
+        self.domain = str(prcsEvts['domain'])
+        self.mode = str(prcsEvts['mode'])
+        self.yvalues = prcsEvts['Yvalues']
+        self.xvalues = prcsEvts['Xvalues']
+        self.nEvts=prcsEvts['nEvts']
+        self.dNevents.setText(str(self.nEvts))
+        
+        if self.yvalues is not None:
             self.topPlot.clear()
-            #self.bottomPlot.clear()
-            phases = self.recentPhases
-            if self.wtp == "time":
-                self.topPlot.setLogMode(None, None)
-                self.topPlot.plot(phases)
+            if self.domain == "time":   
+                self.topPlot.setLogMode(False, None)
+                self.topPlot.plot(self.xvalues,self.yvalues)
                 self.topPlot.setLabel('left','radians')
-                self.topPlot.setLabel('bottom','time sample (ticks)')
-            elif self.wtp == "frequency":
+                self.topPlot.setLabel('bottom','seconds')
+                
+            elif self.domain == "frequency":
                 self.topPlot.setLogMode(True, None)
-                x = phases
-                fs = 1e6 # Gustavo told us this is the sampling frequency.
-                window = 'hanning'
-                nperseg = len(x)
-                noverlap = 0
-                nfft = None
-                detrend = 'constant'
-                f,pxx = welch(x,fs,window,nperseg,noverlap,nfft,detrend,scaling='spectrum')
-                dbcPerHz = 10.0*np.log10(pxx)
-                self.topPlot.plot(f/1e3,dbcPerHz)
+                dbcPerHz = 10.0*np.log10(self.yvalues)
+                self.topPlot.plot(self.xvalues,dbcPerHz)
                 self.topPlot.setLabel('left','dBc/Hz')
                 self.topPlot.setLabel('bottom','frequency (kHz)')
-            else:
-                print "do not understand self.wtp =",self.wtp
 
-            tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
-            self.topPlot.setTitle("%4d %s %5.1f"%tup)
+   #         tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
+   #         self.topPlot.setTitle("%4d %s %5.1f"%tup)
                 
     def doTimer(self):
         n = datetime.datetime.now()
@@ -237,6 +234,8 @@ class RoachReader(QThread):
         self.verbose = verbose
         self.keepAlive = True
         self.parent.signalToRoachReader.connect(self.getSignal)
+        self.duration = self.parent.duration_value
+        self.Nevents=int(sFreq*self.duration)
 
     def getSignal(self,value):
         if value == "Stop":
@@ -248,7 +247,8 @@ class RoachReader(QThread):
             self.isRunning = False
         elif str(value).startswith("duration"):
             self.duration = float(str(value).split()[1])
-            print "hello:  self.duration=",self.duration
+            self.Nevents=int(sFreq*self.duration)
+
     def run(self):
         nIter = 0
         nLoop = 0
@@ -256,39 +256,73 @@ class RoachReader(QThread):
         while self.keepAlive:
             nLoop += 1
             if self.isRunning:
-                rcVerbosity = self.parent.rc.roachController.verbose
-                self.parent.rc.roachController.verbose = False
-                self.signalFromRoachReader.emit({"nIter":nIter, "nLoop":nLoop, "callTakeData":datetime.datetime.now()})
-                #hostIP = self.parent.rc.config.get('HOST', 'hostIP')
+                if roachData is True:             
+                    rcVerbosity = self.parent.rc.roachController.verbose
+                    self.parent.rc.roachController.verbose = False
+                    self.signalFromRoachReader.emit({"nIter":nIter, "nLoop":nLoop, "callTakeData":datetime.datetime.now()})
+                   #hostIP = self.parent.rc.config.get('HOST', 'hostIP')
 
-                # get the ipaddress of the roach board
-                ipaddress = self.parent.rc.config.get(self.parent.rc.roachString,'ipaddress')
+                    # get the ipaddress of the roach board
+                    ipaddress = self.parent.rc.config.get(self.parent.rc.roachString,'ipaddress')
 
-                # find the ip address of this computer that the roach board uses to talk back
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect((ipaddress,80))
-                hostIP = s.getsockname()[0]
-                port = int(self.parent.rc.config.get(self.parent.rc.roachString,'port'))
-                freqChan = self.parent.iFreqIndex
-                timestamp = datetime.datetime.now()
-                duration = self.duration
-                phases = self.parent.rc.roachController.takePhaseStreamDataOfFreqChannel(
-                    freqChan=freqChan, # confirm that this does the right thing 
-                    duration=duration, 
-                    hostIP=hostIP, fabric_port=port)
-                self.parent.rc.roachController.verbose = rcVerbosity
-                freqs = self.parent.rc.roachController.freqChannels
-                dictToEmit = {"nIter":nIter, "nLoop":nLoop, "phases":phases,
-                              "timestamp":timestamp, "freqs":freqs, "duration":duration,
-                              "freqChan":freqChan
-                }
+                    # find the ip address of this computer that the roach board uses to talk back
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    s.connect((ipaddress,80))
+                    hostIP = s.getsockname()[0]
+                    port = int(self.parent.rc.config.get(self.parent.rc.roachString,'port'))
+                    freqChan = self.parent.iFreqIndex
+                    timestamp = datetime.datetime.now()
+                    duration = self.duration
+                    phases = self.parent.rc.roachController.takePhaseStreamDataOfFreqChannel(
+                        freqChan=freqChan, # confirm that this does the right thing 
+                        duration=duration, 
+                        hostIP=hostIP, fabric_port=port)
+                    self.parent.rc.roachController.verbose = rcVerbosity
+                    freqs = self.parent.rc.roachController.freqChannels
+                    
+                else:
+                    # generate test data for debugging
+                    tBegin=time.time()
+                    freqChan = 10          # some arbitary vales for generated data, 
+                    freqs =range(100,150)  # some arbitary vales for generated data, 
+                    timestamp = datetime.datetime.now()
+                    duration = self.duration
+                    Nevents=self.Nevents
+                    a=np.linspace(0.,10.,Nevents)
+                    phases=10*np.random.randn(Nevents)+5.0*np.sin(np.pi*a)
+                    tEnd=time.time()
+                    tWait=duration-(tEnd-tBegin)
+                    if tWait > 0 :
+                        time.sleep(tWait)
+                    
+                # 2.  write data to queue, if writeData is True
+
+                if self.parent.writeData is True:             
+                    dqToWriter.append({
+                        "fileNamePrefix":str(self.parent.fileNamePrefix.text()).strip(),
+                        "recentPhases":phases,
+                        "timestamp":timestamp,
+                        "freqChan":freqChan,
+                        "freqs":freqs,
+                        "duration":duration
+                        })
+                    
+                if self.parent.stream2KST == True :
+                    dqs.append({"phases":phases})
+                    
+                dqToProcessor.append({"phases":phases,"duration":duration})
+                self.parent.dNsamples.setText(str(len(phases)))
                 #self.signalFromWorker.emit(dictToEmit)
 
-                self.signalFromRoachReader.emit(dictToEmit)
+                #self.signalFromRoachReader.emit(dictToEmit)
                 nIter += 1
+                time.sleep(0.1)
             else:
-                time.sleep(1.0)
-            self.signalFromRoachReader.emit({"nIter":nIter, "nLoop":nLoop})
+                pass
+                
+            label = str(nIter)+ ' : ' + str(nLoop)
+            self.parent.loopLabel.setText(label)
+            time.sleep(0.05)
         print "RoachReader:  all done"
 
 class Writer(QThread):
@@ -307,17 +341,18 @@ class Writer(QThread):
             self.keepAlive = False
     def run(self):
         while self.keepAlive:
-            while len(dqToWriter) > 0:
-                data = dqToWriter.popleft()
-                fileNamePrefix = data['fileNamePrefix']
-                recentPhases = data['recentPhases']
-                timestamp = data['timestamp']
-                freqChan = data['freqChan']
-                freqs = data['freqs']
-                baseFileName = "%s-%s"%(fileNamePrefix, timestamp.strftime("%Y-%m-%dT%T.%f"))
-                duration = data['duration']
-                WritePhaseData.WritePhaseData(baseFileName, 'hdf5', freqChan, freqs, duration, recentPhases)
-            time.sleep(1.0)
+            if self.parent.writeData is True:                        
+                while len(dqToWriter) > 0:
+                    data = dqToWriter.popleft()
+                    fileNamePrefix = data['fileNamePrefix']
+                    recentPhases = data['recentPhases']
+                    timestamp = data['timestamp']
+                    freqChan = data['freqChan']
+                    freqs = data['freqs']
+                    baseFileName = "%s-%s"%(fileNamePrefix, timestamp.strftime("%Y-%m-%dT%T.%f"))
+                    duration = data['duration']
+                    WritePhaseData.WritePhaseData(baseFileName, 'hdf5', freqChan, freqs, duration, recentPhases)
+            time.sleep(0.01)
 
 
 class Streamer(QThread):
@@ -330,18 +365,21 @@ class Streamer(QThread):
         self.kstfile = parent.kstfile
 
     def getSignal(self, value):
-        #print "Streamer.getSignal:  value =",value
+        print "Streamer.getSignal:  value =",value
         if value == "Stop":
-            keepStreamAlive=False
+            self.keepStreamAlive=False
 
     def run(self):
-        while self.keepStreamAlive:
-            while len(dqs) > 0:
-                sdata = dqs.pop()
-                dphases = sdata['phases']
-                phaseEnd=dphases[:1000]
-                np.savetxt(self.kstfile, phaseEnd)
+        while self.keepStreamAlive is True:
+            if self.parent.stream2KST is True :
+                while len(dqs) > 0:
+                    sdata = dqs.pop()
+                    dphases = sdata['phases']
+                    phaseEnd=dphases[:10000]
+                    np.savetxt(self.kstfile, phaseEnd)
             time.sleep(1.0)
+
+
 
 
 def ssColor(color):
@@ -351,3 +389,173 @@ def ssColor(color):
     retval += color
     retval += "}"
     return retval
+
+#-----------------------------------------------------------------------------------
+class PlotProcessor(QThread):
+    signalFromProcessor = pyqtSignal(dict)
+    
+    def __init__(self, parent):
+        QThread.__init__(self, parent)
+        self.parent = parent
+        self.domain = 'time' # time or frequency
+        self.mode = 'none'
+        self.duration=self.parent.duration_value
+        self.nEma = 0
+        self.nCma = 0
+        self.Nevents=sFreq*self.duration
+        self.keepAlive = True
+
+        print self.Nevents
+
+        self.parent.signalToProcessor.connect(self.getSignal)
+        
+    def getSignal(self, pdict):
+        if 'wtp' in pdict:
+            self.domain = str(pdict['wtp'])
+        if 'amode' in pdict :
+            self.mode = str(pdict['amode'])
+            self.setMode(self.mode)
+        if 'duration' in pdict :
+            self.duration = float(pdict['duration'])
+            self.Nevents=sFreq*self.duration
+            self.reset()
+        if 'processorLive' in pdict :
+            self.keepAlive = bool(pdict['processorLive'])
+        if 'reset' in pdict:
+            self.reset()
+            
+       
+    def reset(self):
+        self.nEma=0
+        self.nCma = 0
+        self.cma=0
+        self.ema=0
+                 
+    def setMode(self,mode):
+        self.mode = mode
+        if self.mode == "cma":  
+            self.nCma = 0
+            self.cma = 0
+        elif self.mode == "ema":  
+            self.nEma = 0
+            self.ema = 0
+
+    def calcCMA(self,x):  # cumulative moving average
+        if self.nCma == 0:
+            self.cma = x
+            self.nCma += 1
+        else:
+            try :
+                self.cma = (x + self.nCma*self.cma)/(self.nCma+1)
+                self.nCma += 1
+            except :
+                err = sys.exc_info()[0]
+                print err
+        return self.cma, self.nCma
+    
+    def calcEMA(self,x):  # cumulative moving average
+        if self.nEma == 0:
+            self.ema = x
+            self.nEma += 1
+        else:
+            try :
+                self.ema = self.alpha*x+ (1.0-self.alpha)*self.ema
+                self.nEma += 1
+            except :
+                err = sys.exc_info()[0]
+                print err
+                
+        return self.ema, self.nEma 
+                    
+    def run(self):
+        while self.keepAlive:
+            while(len(dqToProcessor) > 1) : 
+                phaseData = dqToProcessor.pop()
+                timeDomainData = phaseData["phases"]
+                durationData  = phaseData["duration"]
+
+                if durationData == self.duration :
+                    # make data was taken with the latest value for duration
+                    #given in GUI. Otherwise will crash when calculating averages
+                    nevtsPlot=int(0.9*self.Nevents)
+                    if len(timeDomainData) > nevtsPlot :
+                        plotData=timeDomainData[:nevtsPlot]
+
+                        self.alpha=0.1
+                          
+                        retval = {
+                            "domain":self.domain,
+                            "mode":self.mode,
+                            }
+                          
+                        retval=[]
+                        frqs=[]
+                        if self.domain == 'time':
+                            x = plotData              
+                            if self.mode == 'none':
+                                retval = x
+                                nEvts=1
+                            elif self.mode == 'cma':
+                                
+                                retval, nEvts = self.calcCMA(plotData)         
+                            
+                            elif self.mode == 'ema':
+                                
+                                retval, nEvts = self.calcEMA(plotData)   
+                            else:    
+                                raise ValueError('teach me how to deal with mode =',self.mode)
+                                   
+                        elif self.domain == 'frequency':
+                            x =  plotData
+                            fs = sFreq
+                            window = 'hanning'
+                            nperseg = len(x)
+                            noverlap = 0
+                            nfft = None
+                            detrend = 'constant'
+                            frqs,pxx = welch(x,fs,window,nperseg,noverlap,nfft,detrend,scaling='spectrum')
+                            
+                            if self.mode == 'none':
+                                retval = pxx
+                                nEvts=1
+                                
+                            elif self.mode == 'cma':
+                                retval, nEvts = self.calcCMA(pxx)
+                                
+                            elif self.mode == 'ema':
+                                retval, nEvts = self.calcEMA(pxx)   
+                                
+                            else:    
+                                raise ValueError("teach me how to deal with mode =",self.mode)
+                        else:
+                            raise ValueError("teach me how to deal with domain =",self.domain)
+                        
+                        if len(retval) > 0:
+                            nPlot=self.parent.nPlot
+                            nValues=len(retval)
+                            
+                            I=np.arange(0,nValues,int(nValues/nPlot))
+                            
+                            plotValues=retval[I]
+                            if self.domain == "frequency":
+                                plotX=frqs[I]
+                            else:
+                                tvalues=np.linspace(0,self.duration,nValues)
+                                plotX = tvalues[I]
+                            
+                            retdict=({"domain":self.domain,"mode":self.mode,"Yvalues":plotValues,"Xvalues":plotX,
+                                      "nEvts":nEvts})
+                            self.signalFromProcessor.emit(retdict)
+            time.sleep(.1)                
+
+if __name__ == "__main__":
+    roachData=False # True to read Roach data, False to test with generated events.
+    
+    app = QtGui.QApplication(sys.argv)
+    rchc=100
+    
+    phasePlotWindow = PhasePlotWindow(rchc)
+    phasePlotWindow.show()
+    sys.exit(app.exec_())
+    
+ 
