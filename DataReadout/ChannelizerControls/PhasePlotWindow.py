@@ -8,9 +8,6 @@ import sys
 import WritePhaseData
 reload(WritePhaseData)
 import pdb
-#import PlotProcessor
-#reload(PlotProcessor)
-
 
 roachData = True
 # True to read Roach data, False to test with generated events.
@@ -71,8 +68,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(500)
-      
-        
+             
         if roachData is True:
             items = []
             for resID,resFreq,atten in zip(rc.roachController.resIDs,
@@ -86,8 +82,8 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
         self.recentPhases = None
-        self.wtp = str(self.whatToPlot.currentText()).strip()
-        self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
+        self.domain = str(self.whatToPlot.currentText()).strip()
+        self.whatToPlot.currentIndexChanged.connect(self.plotDomainChanged)
         self.amode = str(self.howToAve.currentText()).strip()
         self.howToAve.currentIndexChanged.connect(self.howToAveChanged)
         self.show()
@@ -109,7 +105,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.signalToRoachReader.emit('Stop')
         self.signalToWriter.emit('Stop')
         self.signalToStreamer.emit('Stop')
-        self.signalToProcessor.emit({'processorLive':""})
+        self.signalToProcessor.emit({'Stop':'stop'})
         self.timer.stop()
         
         self.close()
@@ -181,17 +177,17 @@ class PhasePlotWindow(QtGui.QMainWindow):
     def signalFromRoachReader(self,dict):
         pass
     
-    def whatToPlotChanged(self, index):
-        self.wtp = str(self.whatToPlot.currentText()).strip()
-        self.processData()
+    def plotDomainChanged(self, index):
+        self.domain = str(self.whatToPlot.currentText()).strip()
+        self.signalToProcessor.emit({'domain':self.domain})
 
     def howToAveChanged(self, index):
         self.amode = str(self.howToAve.currentText()).strip()
-        self.processData()      
+        self.signalToProcessor.emit({'amode':self.amode})
 
     def processData(self):
         # self.recentPhases is a dictionary of:  phases
-        prDict={"wtp":self.wtp,"amode":self.amode,"processorLive":True}
+        prDict={'amode':self.amode}
         self.signalToProcessor.emit(prDict)
 
     def updatePlots(self,prcsEvts):
@@ -205,7 +201,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         
         if self.yvalues is not None:
             self.topPlot.clear()
-            if self.domain == "time":   
+            if self.domain == 'time':   
                 self.topPlot.setLogMode(False, None)
                 self.topPlot.plot(self.xvalues,self.yvalues)
                 self.topPlot.setLabel('left','radians')
@@ -306,15 +302,15 @@ class RoachReader(QThread):
                         "freqs":freqs,
                         "duration":duration
                         })
-                    
+
+                #  write data to queue for streaming        
                 if self.parent.stream2KST == True :
                     dqs.append({"phases":phases})
-                    
+
+                #  write data to queue forfor plotting    
                 dqToProcessor.append({"phases":phases,"duration":duration})
                 self.parent.dNsamples.setText(str(len(phases)))
-                #self.signalFromWorker.emit(dictToEmit)
 
-                #self.signalFromRoachReader.emit(dictToEmit)
                 nIter += 1
                 time.sleep(0.1)
             else:
@@ -380,8 +376,6 @@ class Streamer(QThread):
             time.sleep(1.0)
 
 
-
-
 def ssColor(color):
     retval = "QWidget {background-color:"
     retval += color
@@ -398,7 +392,7 @@ class PlotProcessor(QThread):
         QThread.__init__(self, parent)
         self.parent = parent
         self.domain = 'time' # time or frequency
-        self.mode = 'none'
+        self.mode = 'none'   # none, cma or ema
         self.duration=self.parent.duration_value
         self.nEma = 0
         self.nCma = 0
@@ -410,17 +404,18 @@ class PlotProcessor(QThread):
         self.parent.signalToProcessor.connect(self.getSignal)
         
     def getSignal(self, pdict):
-        if 'wtp' in pdict:
-            self.domain = str(pdict['wtp'])
+        if 'domain' in pdict:
+            self.domain = str(pdict['domain'])
+            self.reset()
         if 'amode' in pdict :
             self.mode = str(pdict['amode'])
-            self.setMode(self.mode)
+            self.reset()
         if 'duration' in pdict :
             self.duration = float(pdict['duration'])
             self.Nevents=sFreq*self.duration
             self.reset()
-        if 'processorLive' in pdict :
-            self.keepAlive = bool(pdict['processorLive'])
+        if 'Stop' in pdict :
+            self.keepAlive = False 
         if 'reset' in pdict:
             self.reset()
             
@@ -430,15 +425,7 @@ class PlotProcessor(QThread):
         self.nCma = 0
         self.cma=0
         self.ema=0
-                 
-    def setMode(self,mode):
-        self.mode = mode
-        if self.mode == "cma":  
-            self.nCma = 0
-            self.cma = 0
-        elif self.mode == "ema":  
-            self.nEma = 0
-            self.ema = 0
+
 
     def calcCMA(self,x):  # cumulative moving average
         if self.nCma == 0:
