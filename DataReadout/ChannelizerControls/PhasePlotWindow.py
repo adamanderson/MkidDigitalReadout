@@ -1,5 +1,6 @@
 import datetime, time, os, socket
 from PyQt4 import QtGui, uic
+from PyQt4.QtGui import QPixmap
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
@@ -45,6 +46,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.doWriteDataState()
 
         self.reset.clicked.connect(self.doReset)
+        self.savePlot.clicked.connect(self.doSavePlot)
 
         self.setWindowTitle('PhasePlot')
         self.roachReader = RoachReader(self)
@@ -92,6 +94,13 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.roachReader.start()
         self.plotprocessor.start()
         
+    def doSavePlot(self) :
+        p = QPixmap.grabWindow(self.winId())
+        tn=datetime.datetime.now()
+        filename="img_"+"{:%Y-%m-%d-%H:%M:%S.%f}".format(tn)[:-7]+".png"
+        p.save(filename, 'png')
+        
+        
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -106,8 +115,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.signalToWriter.emit('Stop')
         self.signalToStreamer.emit('Stop')
         self.signalToProcessor.emit({'Stop':'stop'})
-        self.timer.stop()
-        
+        self.timer.stop()        
         self.close()
         
     def doReset(self):
@@ -214,9 +222,6 @@ class PhasePlotWindow(QtGui.QMainWindow):
                 self.topPlot.setLabel('left','dBc/Hz')
                 self.topPlot.setLabel('bottom','frequency (kHz)')
 
-   #         tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
-   #         self.topPlot.setTitle("%4d %s %5.1f"%tup)
-                
     def doTimer(self):
         n = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
