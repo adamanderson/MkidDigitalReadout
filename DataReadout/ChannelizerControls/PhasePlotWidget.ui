@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>845</width>
-    <height>570</height>
+    <height>569</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,7 +18,7 @@
     <rect>
      <x>0</x>
      <y>456</y>
-     <width>841</width>
+     <width>909</width>
      <height>111</height>
     </rect>
    </property>
@@ -30,14 +30,127 @@
       </property>
       <property name="sizeHint" stdset="0">
        <size>
-        <width>20</width>
-        <height>40</height>
+        <width>836</width>
+        <height>1</height>
        </size>
       </property>
      </spacer>
     </item>
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item>
+       <widget class="QScrollBar" name="horizScroll">
+        <property name="minimumSize">
+         <size>
+          <width>350</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSpinBox" name="plotZoom"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>%</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_6">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>10</width>
+          <height>13</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>N events: </string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="dNevents">
+        <property name="text">
+         <string>nevents</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_5">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Expanding</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>15</width>
+          <height>0</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="savePlot">
+        <property name="maximumSize">
+         <size>
+          <width>80</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>save plot</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_4">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>N Samples: </string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="dNsamples">
+        <property name="text">
+         <string>nsamples</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_4">
       <item>
        <widget class="QLabel" name="label_4">
         <property name="maximumSize">
@@ -116,52 +229,6 @@
        </widget>
       </item>
       <item>
-       <spacer name="horizontalSpacer_6">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>15</width>
-          <height>13</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_5">
-        <property name="text">
-         <string>N events: </string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="dNevents">
-        <property name="text">
-         <string>nevents</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <spacer name="horizontalSpacer_5">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>15</width>
-          <height>0</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
        <widget class="QPushButton" name="reset">
         <property name="maximumSize">
          <size>
@@ -171,76 +238,6 @@
         </property>
         <property name="text">
          <string>reset</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <spacer name="horizontalSpacer_8">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
-       <widget class="QPushButton" name="savePlot">
-        <property name="maximumSize">
-         <size>
-          <width>80</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>save plot</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <spacer name="horizontalSpacer_4">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_3">
-        <property name="text">
-         <string>N Samples: </string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="dNsamples">
-        <property name="text">
-         <string>nsamples</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_4">
-      <item>
-       <widget class="QLabel" name="callTakeData">
-        <property name="minimumSize">
-         <size>
-          <width>150</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>callTakePhaseStream?</string>
         </property>
        </widget>
       </item>
@@ -302,7 +299,7 @@
        <widget class="QLabel" name="datetimeClock">
         <property name="minimumSize">
          <size>
-          <width>160</width>
+          <width>150</width>
           <height>0</height>
          </size>
         </property>
@@ -434,6 +431,7 @@
   </widget>
   <zorder>verticalLayoutWidget</zorder>
   <zorder>graphicsLayoutWidget</zorder>
+  <zorder>verticalSpacer</zorder>
   <zorder>verticalSpacer</zorder>
   <zorder>verticalSpacer</zorder>
   <zorder>verticalSpacer</zorder>
