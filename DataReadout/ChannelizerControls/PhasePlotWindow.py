@@ -54,6 +54,16 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.roachReader.duration = float(self.duration.currentText())
         self.writer = Writer(self)
 
+        self.horizScroll.setRange(0,1000)
+        self.horizScroll.setTracking(True)
+        self.horizScroll.valueChanged.connect(self.sliderMoved)
+        
+
+        self.plotZoom.setRange(1,100)
+        self.plotZoom.setValue(100)
+        self.plotZoom.valueChanged.connect(self.zoomChanged)
+        
+
         
         self.plotprocessor = PlotProcessor(self)
         self.plotprocessor.signalFromProcessor.connect(self.updatePlots)
@@ -93,12 +103,19 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.streamer.start()
         self.roachReader.start()
         self.plotprocessor.start()
+
+    def sliderMoved(self):
+        self.signalToProcessor.emit({'slider':self.horizScroll.value()})
+
+    def zoomChanged(self) :
+        self.signalToProcessor.emit({'zoom':self.plotZoom.value()})
         
     def doSavePlot(self) :
         p = QPixmap.grabWindow(self.winId())
         tn=datetime.datetime.now()
         filename="img_"+"{:%Y-%m-%d-%H:%M:%S.%f}".format(tn)[:-7]+".png"
         p.save(filename, 'png')
+        print  "saved to file: %s"%filename 
         
         
     def closeEvent(self, event):
@@ -402,9 +419,10 @@ class PlotProcessor(QThread):
         self.nEma = 0
         self.nCma = 0
         self.Nevents=sFreq*self.duration
+        self.sliderPos = 0
+        self.zoomVal = 1
+        
         self.keepAlive = True
-
-        print self.Nevents
 
         self.parent.signalToProcessor.connect(self.getSignal)
         
@@ -423,6 +441,12 @@ class PlotProcessor(QThread):
             self.keepAlive = False 
         if 'reset' in pdict:
             self.reset()
+        if 'slider' in pdict:
+            self.sliderPos = float(pdict['slider'])/1000
+
+        if 'zoom' in pdict :
+            self.zoomVal = float(pdict['zoom'])/100                               
+            
             
        
     def reset(self):
@@ -525,8 +549,12 @@ class PlotProcessor(QThread):
                         if len(retval) > 0:
                             nPlot=self.parent.nPlot
                             nValues=len(retval)
-                            
-                            I=np.arange(0,nValues,int(nValues/nPlot))
+                            plValues=max(nPlot,int(nValues*self.zoomVal))
+                            sValue=int(self.sliderPos*(nValues-plValues))
+
+                        
+                            I=np.arange(sValue,sValue+plValues,int(plValues/nPlot))
+
                             
                             plotValues=retval[I]
                             if self.domain == "frequency":
