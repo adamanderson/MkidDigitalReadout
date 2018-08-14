@@ -9,6 +9,7 @@ import sys
 import WritePhaseData
 reload(WritePhaseData)
 import pdb
+import pyqtgraph as pg
 
 roachData = True
 # True to read Roach data, False to test with generated events.
@@ -55,17 +56,14 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.writer = Writer(self)
 
         self.horizScroll.setRange(0,1000)
-        self.horizScroll.setPageStep(2000) # just to make the slider long
+        self.horizScroll.setPageStep(1000) # just to make the slider long
         self.horizScroll.setSingleStep(1)
         self.horizScroll.setTracking(True)
         self.horizScroll.valueChanged.connect(self.sliderMoved)
         
-
         self.plotZoom.setRange(1,100)
         self.plotZoom.setValue(100)
         self.plotZoom.valueChanged.connect(self.zoomChanged)
-        
-
         
         self.plotprocessor = PlotProcessor(self)
         self.plotprocessor.signalFromProcessor.connect(self.updatePlots)
@@ -82,6 +80,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(500)
+        
              
         if roachData is True:
             items = []
@@ -114,7 +113,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
         # just to make the lenth of the slider propotional to zoom factor, kind of works but
         # don't understand why it has to exceed the range (1000) and still shorther
         # than the slider in GUI   
-        pgstep=2000*float(zmval)/100  
+        pgstep=1000*float(zmval)/100  
         self.horizScroll.setPageStep(pgstep)
         
         self.signalToProcessor.emit({'zoom':zmval})
@@ -539,7 +538,6 @@ class PlotProcessor(QThread):
                             nfft = None
                             detrend = 'constant'
                             frqs,pxx = welch(x,fs,window,nperseg,noverlap,nfft,detrend,scaling='spectrum')
-                            
                             if self.mode == 'none':
                                 retval = pxx
                                 nEvts=1
