@@ -10,7 +10,7 @@ import WritePhaseData
 reload(WritePhaseData)
 import pdb
 
-roachData = True
+roachData = False
 # True to read Roach data, False to test with generated events.
 sFreq =1e6
 dqs = deque()
@@ -55,6 +55,8 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.writer = Writer(self)
 
         self.horizScroll.setRange(0,1000)
+        self.horizScroll.setPageStep(2000) # just to make the slider long
+        self.horizScroll.setSingleStep(1)
         self.horizScroll.setTracking(True)
         self.horizScroll.valueChanged.connect(self.sliderMoved)
         
@@ -108,7 +110,14 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.signalToProcessor.emit({'slider':self.horizScroll.value()})
 
     def zoomChanged(self) :
-        self.signalToProcessor.emit({'zoom':self.plotZoom.value()})
+        zmval= self.plotZoom.value()
+        # just to make the lenth of the slider propotional to zoom factor, kind of works but
+        # don't understand why it has to exceed the range (1000) and still shorther
+        # than the slider in GUI   
+        pgstep=2000*float(zmval)/100  
+        self.horizScroll.setPageStep(pgstep)
+        
+        self.signalToProcessor.emit({'zoom':zmval})
         
     def doSavePlot(self) :
         p = QPixmap.grabWindow(self.winId())
@@ -237,7 +246,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
                 dbcPerHz = 10.0*np.log10(self.yvalues)
                 self.topPlot.plot(self.xvalues,dbcPerHz)
                 self.topPlot.setLabel('left','dBc/Hz')
-                self.topPlot.setLabel('bottom','frequency (kHz)')
+                self.topPlot.setLabel('bottom','frequency (Hz)')
 
     def doTimer(self):
         n = datetime.datetime.now()
