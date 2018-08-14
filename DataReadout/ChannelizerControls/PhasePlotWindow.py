@@ -10,7 +10,7 @@ import WritePhaseData
 reload(WritePhaseData)
 import pdb
 
-roachData = False
+roachData = True
 # True to read Roach data, False to test with generated events.
 sFreq =1e6
 dqs = deque()
