@@ -429,6 +429,19 @@
     </rect>
    </property>
   </widget>
+  <widget class="QLabel" name="cursorXY">
+   <property name="geometry">
+    <rect>
+     <x>670</x>
+     <y>20</y>
+     <width>171</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#ffffff;&quot;&gt;TextLabel&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+   </property>
+  </widget>
   <zorder>verticalLayoutWidget</zorder>
   <zorder>graphicsLayoutWidget</zorder>
   <zorder>verticalSpacer</zorder>
@@ -436,6 +449,7 @@
   <zorder>verticalSpacer</zorder>
   <zorder>verticalSpacer</zorder>
   <zorder>verticalSpacer</zorder>
+  <zorder>cursorXY</zorder>
  </widget>
  <customwidgets>
   <customwidget>
