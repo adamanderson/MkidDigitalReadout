@@ -40,7 +40,10 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.runState.setText("Running")
         self.doRunState()
         self.nPlot=5000
-
+        # region = pg.LinearRegionItem()
+        # region.setZValue(10)
+        # self.topPlot.addItem(region, ignoreBounds=True)
+        #self.topPlot.setAutoVisible(y=True)
 
         self.writeDataState.clicked.connect(self.doWriteDataState)
         self.writeDataState.setText("Writing Data")
@@ -67,6 +70,19 @@ class PhasePlotWindow(QtGui.QMainWindow):
         
         self.plotprocessor = PlotProcessor(self)
         self.plotprocessor.signalFromProcessor.connect(self.updatePlots)
+
+        # cursor position in the plot
+        self.cursorXY.setText('')
+        self.region = pg.LinearRegionItem()
+        self.vLine = pg.InfiniteLine(angle=90, movable=False)
+        self.hLine = pg.InfiniteLine(angle=0, movable=False)
+        self.topPlot.addItem(self.vLine, ignoreBounds=True)
+        self.topPlot.addItem(self.hLine, ignoreBounds=True)
+        
+        self.topPlot.scene().sigMouseMoved.connect(self.mouseMoved)
+        self.topPlot.sigRangeChanged.connect(self.updateRegion)
+        
+
         
 	# stream data to a file to read by KST
         self.dNsamples.setText("")
@@ -104,6 +120,22 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.streamer.start()
         self.roachReader.start()
         self.plotprocessor.start()
+
+
+
+    def mouseMoved(self,evt):
+        mousePoint = self.topPlot.vb.mapSceneToView(evt)
+        self.vLine.setPos(mousePoint.x())
+        self.hLine.setPos(mousePoint.y())
+        if self.domain == 'time':
+            self.cursorXY.setText("<span style='color: white'> t=%12.3fs  :  ph=%12.3fR </span>" %(mousePoint.x(),mousePoint.y()))
+        else :
+            self.cursorXY.setText("<span style='color: white'> f=%12.0fHz :  a=%12.3f </span>"%(10**mousePoint.x(),mousePoint.y()))
+
+    def updateRegion(self,window, viewRange):
+        rgn = viewRange[0]
+        self.region.setRegion(rgn)
+        
 
     def sliderMoved(self):
         self.signalToProcessor.emit({'slider':self.horizScroll.value()})
@@ -246,6 +278,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
                 self.topPlot.plot(self.xvalues,dbcPerHz)
                 self.topPlot.setLabel('left','dBc/Hz')
                 self.topPlot.setLabel('bottom','frequency (Hz)')
+    
 
     def doTimer(self):
         n = datetime.datetime.now()
