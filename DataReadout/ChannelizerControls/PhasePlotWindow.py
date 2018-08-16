@@ -121,16 +121,18 @@ class PhasePlotWindow(QtGui.QMainWindow):
         self.roachReader.start()
         self.plotprocessor.start()
 
-
-
     def mouseMoved(self,evt):
         mousePoint = self.topPlot.vb.mapSceneToView(evt)
         self.vLine.setPos(mousePoint.x())
         self.hLine.setPos(mousePoint.y())
         if self.domain == 'time':
-            self.cursorXY.setText("<span style='color: white'> t=%12.3fs  :  ph=%12.3fR </span>" %(mousePoint.x(),mousePoint.y()))
+            self.cursorXY.setText("<span style='color: white'> t=%0.3fs  :  ph=%0.3fR </span>" %(mousePoint.x(),mousePoint.y()))
         else :
-            self.cursorXY.setText("<span style='color: white'> f=%12.0fHz :  a=%12.3f </span>"%(10**mousePoint.x(),mousePoint.y()))
+            frq=10.0**mousePoint.x()
+            if frq < 1000. :
+                self.cursorXY.setText("<span style='color: white'> f=%0.0fHz :  a=%0.3f </span>"%(frq,mousePoint.y()))
+            else :
+                self.cursorXY.setText("<span style='color: white'> f=%0.3fkHz :  a=%0.3f </span>"%(frq/1000.0,mousePoint.y()))
 
     def updateRegion(self,window, viewRange):
         rgn = viewRange[0]
@@ -142,18 +144,18 @@ class PhasePlotWindow(QtGui.QMainWindow):
 
     def zoomChanged(self) :
         zmval= self.plotZoom.value()
-        # just to make the lenth of the slider propotional to zoom factor, kind of works but
-        # don't understand why it has to exceed the range (1000) and still shorther
-        # than the slider in GUI   
+        # just to make the lenth of the slider propotional to zoom factor, kind of works.
         pgstep=1000*float(zmval)/100  
         self.horizScroll.setPageStep(pgstep)
         
         self.signalToProcessor.emit({'zoom':zmval})
         
     def doSavePlot(self) :
+        cwd=os.getcwd()
         p = QPixmap.grabWindow(self.winId())
         tn=datetime.datetime.now()
         filename="img_"+"{:%Y-%m-%d-%H:%M:%S.%f}".format(tn)[:-7]+".png"
+        filename=os.path.join(cwd,filename)
         p.save(filename, 'png')
         print  "saved to file: %s"%filename 
         
@@ -347,8 +349,8 @@ class RoachReader(QThread):
                     timestamp = datetime.datetime.now()
                     duration = self.duration
                     Nevents=self.Nevents
-                    a=np.linspace(0.,10.,Nevents)
-                    phases=10*np.random.randn(Nevents)+5.0*np.sin(np.pi*a)
+                    a=np.linspace(0.,duration,Nevents)
+                    phases=10*np.random.randn(Nevents)+5.0*np.sin(100*np.pi*a)
                     tEnd=time.time()
                     tWait=duration-(tEnd-tBegin)
                     if tWait > 0 :
