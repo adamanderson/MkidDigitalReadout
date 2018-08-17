@@ -236,7 +236,8 @@ class PhasePlotWindow(QtGui.QMainWindow):
             self.iFreqResID = self.rc.roachController.resIDs[index]
             self.iFreqFreq  = self.rc.roachController.freqList[index]
             self.iFreqAtten = self.rc.roachController.attenList[index]
-    
+        self.signalToProcessor.emit({"reset":'reset'})
+        
     def signalFromWorker(self,dict):
         # The dict is defined as "dictToEmit" in the function "run" of the class "Worker
         pass
