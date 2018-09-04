@@ -25,6 +25,7 @@ class WritePhaseData():
         self.fFormat=fFormat.strip()
         self.phases = phases
         self.freqs = frequencies
+        print "WritePhaseData format=",format," phases[:4]=",phases[:4]
         self.write()
         if not (self.fFormat is "ascii" or self.fFormat is "hdf5"):
             raise ValueError("fFormat must be ascii or hdf5, not %s"%fFormat)
@@ -62,6 +63,7 @@ class WritePhaseData():
         dset.attrs['duration']=self.duration
         dset.attrs['frequency channel']=self.freqChan
         dset.attrs['frequencies']=self.freqs
+        print "In WritePhaseData:  phases[:4]=",self.phases[:4]
         fileh.flush()
         fileh.close()
 
