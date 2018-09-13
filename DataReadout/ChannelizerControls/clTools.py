@@ -15,10 +15,10 @@ and if you make changes to code in this file:
 > reload(clTools)
 
 """
-import os, sys, warnings, datetime, pickle
+import os, sys, time, warnings, datetime, pickle, socket, ConfigParser
 import numpy as np
-import datetime, socket
-import ConfigParser
+from autoZdokCal import loadDelayCal, findCal
+from myQdr import Qdr as myQdr
 import RoachConnection
 reload(RoachConnection)
 import WritePhaseData
@@ -31,6 +31,83 @@ def connect(roachNumber, configFile):
 def loadFreq(rchc):
     rchc.loadFreq()
 
+def init(roachNumber, configFile):
+    config = ConfigParser.ConfigParser()
+    config.read(configFile)
+    rchc = connect(roachNumber, configFile)
+
+    # Mimic what is done in InitStateMachine programV6
+    fpgPath = config.get('Roach '+str(roachNumber),'fpgPath')
+    rchc.roachController.fpga.upload_to_ram_and_program(fpgPath)
+    print 'Fpga Clock Rate:',rchc.roachController.fpga.estimate_fpga_clock()
+    rchc.roachController.loadBoardNum(roachNumber)
+    rchc.roachController.loadCurTimestamp()
+                                        
+    # Mimic what is done in InitStateMachine initV7
+    waitForV7Ready = config.getboolean('Roach '+str(roachNumber),'waitForV7Ready')
+    rchc.roachController.initializeV7UART(waitForV7Ready=waitForV7Ready)
+    print 'initialized uart'
+    rchc.roachController.initV7MB()
+    print 'initialized mb'
+    #self.config.set('Roach '+str(roachNumber),'waitForV7Ready',False)
+    rchc.roachController.setLOFreq(2.e9)
+    rchc.roachController.loadLOFreq()
+    print 'Set LO to 2 GHz'
+    rchc.roachController.changeAtten(1, 31.75)   #DAC atten 1
+    rchc.roachController.changeAtten(2, 31.75)   #DAC atten 2
+    rchc.roachController.changeAtten(3, 31.75)   #ADC atten 1
+    rchc.roachController.changeAtten(4, 31.75)   #ADC atten 2
+    print 'Set RF board attenuators to maximum'
+
+    # Mimic what is done in InitStateMachine calZdok
+    rchc.roachController.sendUARTCommand(0x4)
+    print 'switched on ADC ZDOK Cal ramp'
+    time.sleep(.1)
+    
+    nBitsRemovedInFFT = config.getint('Roach '+str(roachNumber),'nBitsRemovedInFFT')
+    rchc.roachController.fpga.write_int('adc_in_i_scale',2**7) #set relative IQ scaling to 1
+    # if(nBitsRemovedInFFT == 0):
+    #     rchc.setAdcScale(0.9375) #Max ADC scale value
+    # else:
+    #     rchc.setAdcScale(1./(2**nBitsRemovedInFFT))
+
+    rchc.roachController.fpga.write_int('run',1)
+    busDelays = [14,18,14,13]
+    busStarts = [0,14,28,42]
+    busBitLength = 12
+    for iBus in xrange(len(busDelays)):
+        delayLut = zip(np.arange(busStarts[iBus],busStarts[iBus]+busBitLength), 
+                       busDelays[iBus] * np.ones(busBitLength))
+        loadDelayCal(rchc.roachController.fpga,delayLut)
+
+    # calDict = findCal(rchc.roachController.fpga,nBitsRemovedInFFT)
+    calDict = findCal(rchc.roachController.fpga)
+    print calDict
+        
+    rchc.roachController.sendUARTCommand(0x5)
+    print 'switched off ADC ZDOK Cal ramp'
+        
+    if not calDict['solutionFound']:
+        raise ValueError
+            
+    # Mimic what is done in InitStateMachine calQDR
+    bQdrFlip = True
+    calVerbosity = 0
+    bFailHard = False
+    #rchc.roachController.fpga.get_system_information()
+    results = {}
+    for iQdr,qdr in enumerate(rchc.roachController.fpga.qdrs):
+        mqdr = myQdr.from_qdr(qdr)
+        print qdr.name
+        results[qdr.name] = mqdr.qdr_cal2(fail_hard=bFailHard,verbosity=calVerbosity)
+
+    print 'Qdr cal results:',results
+    for qdrName in results.keys():
+        if not results[qdrName]:
+            raise ValueError
+    return True
+
+    
 def setup(roachNumber, configFile):
     """
     for the roach number and confFile, set up the connection and load LUTs to prepare
