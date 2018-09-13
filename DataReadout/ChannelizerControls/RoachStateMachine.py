@@ -252,23 +252,29 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         if os.path.isfile(fn2): 
             fn=fn2
             print 'Loading freqs from '+fn
-        
-        freqFile = np.loadtxt(fn)
-        
-        if np.shape(freqFile)[1]==3:
-            resIDs = np.atleast_1d(freqFile[:,0])       # If there's only 1 resonator numpy loads it in as a float.
-            freqs = np.atleast_1d(freqFile[:,1])     # We need an array of floats
-            attens = np.atleast_1d(freqFile[:,2])
-            phaseOffsList = np.zeros(len(freqs))
-            iqRatioList = np.ones(len(freqs))
-        
-        else:
-            resIDs = np.atleast_1d(freqFile[:,0])       # If there's only 1 resonator numpy loads it in as a float.
-            freqs = np.atleast_1d(freqFile[:,1])     # We need an array of floats
-            attens = np.atleast_1d(freqFile[:,2])
-            phaseOffsList = np.atleast_1d(freqFile[:,3])
-            iqRatioList = np.atleast_1d(freqFile[:,4])
 
+        resIDs = np.array([])
+        freqs = np.array([])
+        attens = np.array([])
+        phaseOffsList = np.array([])
+        iqRatioList = np.array([])
+        with open(fn, 'rb') as ffHandle:
+            for line in ffHandle:
+                vList = line.split()
+                if len(vList) > 0:
+                    resIDs = np.append(resIDs, float(vList[0]))
+                    freqs  = np.append(freqs, float(vList[1]))
+                    attens = np.append(attens, float(vList[2]))
+                if len(vList) > 3:
+                    phaseOffsList = np.append(phaseOffsList, float(vList[3]))
+                else:
+                    phaseOffsList = np.append(phaseOffsList, 0.0)
+                if len(vList) > 4:
+                    iqRatioList = np.append(iqRatioList, float(vList[4]))
+                else:
+                    iqRatioList = np.append(iqRatioList, 1.0)
+
+            
         assert(len(freqs) == len(np.unique(freqs))), "Frequencies in "+fn+" need to be unique."
         assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
         argsSorted = np.argsort(freqs)  # sort them by frequency (I don't think this is needed)
@@ -278,6 +284,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         phaseOffsList = iqRatioList[argsSorted]
         iqRatioList = iqRatioList[argsSorted]
         if self.verbose:
+            print "number of frequencies = ",len(resIDs)
             for i in range(len(freqs)):
                 print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
         
