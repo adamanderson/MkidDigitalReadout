@@ -277,7 +277,7 @@ class PhasePlotWindow(QtGui.QMainWindow):
                 
             elif self.domain == "frequency":
                 self.topPlot.setLogMode(True, None)
-                dbcPerHz = 10.0*np.log10(self.yvalues)
+                dbcPerHz = 10.0*np.log10(self.yvalues/2.0)
                 self.topPlot.plot(self.xvalues,dbcPerHz)
                 self.topPlot.setLabel('left','dBc/Hz')
                 self.topPlot.setLabel('bottom','frequency (Hz)')
@@ -573,7 +573,8 @@ class PlotProcessor(QThread):
                             noverlap = 0
                             nfft = None
                             detrend = 'constant'
-                            frqs,pxx = welch(x,fs,window,nperseg,noverlap,nfft,detrend,scaling='spectrum')
+                            frqs,pxx = welch(x,fs,window,nperseg,noverlap,nfft,detrend,scaling='density')
+                            print "In PhasePlotWindow density:  frqs[0:3]=",frqs[0:3]
                             if self.mode == 'none':
                                 retval = pxx
                                 nEvts=1
@@ -595,16 +596,17 @@ class PlotProcessor(QThread):
                             plValues=max(nPlot,int(nValues*self.zoomVal))
                             sValue=int(self.sliderPos*(nValues-plValues))
 
-                        
-                            I=np.arange(sValue,sValue+plValues,int(plValues/nPlot))
+                            plotValues = retval
+                            #I=np.arange(sValue,sValue+plValues,int(plValues/nPlot))
+                            #plotValues=retval[I]
 
-                            
-                            plotValues=retval[I]
                             if self.domain == "frequency":
-                                plotX=frqs[I]
+                                #plotX=frqs[I]
+                                plotX=frqs
                             else:
                                 tvalues=np.linspace(0,self.duration,nValues)
-                                plotX = tvalues[I]
+                                #plotX = tvalues[I]
+                                plotX = tvalues
                             
                             retdict=({"domain":self.domain,"mode":self.mode,"Yvalues":plotValues,"Xvalues":plotX,
                                       "nEvts":nEvts})
