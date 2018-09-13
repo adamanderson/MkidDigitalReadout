@@ -126,7 +126,10 @@ class Roach2Controls:
         self.v7_ready = 0
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
         self.thresholdList = -np.pi*np.ones(1024)
-    
+
+        # Set in changeAtten
+        self.attenVal = {1:None, 2:None, 3:None, 4:None}
+        
     def connect(self):
         try:
             self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=3.)
@@ -810,7 +813,7 @@ class Roach2Controls:
         self.fpga.write_int(self.params['adcScale_reg'],scaleInt)
 
     
-    def changeAtten(self, attenID, attenVal):
+    def changeAtten(self, attenID, attenValInput):
         """
         Change the attenuation on IF Board attenuators
         Must initialize attenuator SPI connection first
@@ -821,10 +824,10 @@ class Roach2Controls:
                 3 - RF Downconverter path
             attenVal - attenuation between 0 and 31.75 dB. Must be multiple of 0.25 dB
         """
-        if attenVal > 31.75 or attenVal<0:
-            raise ValueError("Attenuation must be between 0 and 31.75")
+        if attenValInput > 31.75 or attenValInput<0:
+            raise ValueError("Attenuation must be between 0 and 31.75 but attenValInput =%s"%str(attenValInput))
         
-        attenVal = int(np.round(attenVal*4)) #attenVal register holds value 4x(attenuation)
+        attenVal = int(np.round(attenValInput*4)) #attenVal register holds value 4x(attenuation)
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
@@ -846,7 +849,7 @@ class Roach2Controls:
 
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
-        
+        self.attenVal[attenID] = attenVal/4
     def snapZdok(self,nRolls=0):
         snapshotNames = self.fpga.snapshots.names()
 
