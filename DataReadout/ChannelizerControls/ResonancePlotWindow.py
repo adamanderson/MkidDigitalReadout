@@ -1,5 +1,5 @@
 import datetime, time, os, json_tricks, pickle
-from PyQt4 import QtGui, uic
+from PyQt4 import QtGui, uic, QtCore
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
@@ -11,11 +11,11 @@ dq = deque()
 
 class ResonancePlotWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
-    def __init__(self, rc):
+    def __init__(self, rchc):
         super(ResonancePlotWindow,self).__init__()
         self.stopping = False
         self.iqData = None
-        self.rc = rc
+        self.rchc = rchc
         thisDir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(thisDir,'ResonancePlotWidget.ui'), self)
         self.topPlot =    self.graphicsLayoutWidget.addPlot()
@@ -27,6 +27,8 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.runState.setText("Running")
         self.doRunState()
 
+        self.sweepState.clicked.connect(self.doSweepState)
+        self.doSweepState(False)
         #self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('ResonancePlot')
         self.worker = Worker(self)
@@ -36,9 +38,9 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(500) 
         items = []
-        for resID,resFreq,atten in zip(rc.roachController.resIDs,
-                                 rc.roachController.freqList,
-                                 rc.roachController.attenList):
+        for resID,resFreq,atten in zip(rchc.roachController.resIDs,
+                                 rchc.roachController.freqList,
+                                 rchc.roachController.attenList):
             items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
         self.iFreq.addItems(items)
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
@@ -47,6 +49,13 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.recentIQData = None
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
+
+        LO_span = self.rchc.config.getfloat(rchc.roachString,"sweeplospan")
+        LO_step = self.rchc.config.getfloat(rchc.roachString,"sweeplostep")
+        print "LO_span=",LO_span
+        print "LO_step=",LO_step
+        self.loStep.setValue(LO_step/1e3)
+        self.loSpan.setValue(LO_span/1e3)
         self.show()
 
 
@@ -66,34 +75,47 @@ class ResonancePlotWindow(QtGui.QMainWindow):
             self.timer.stop()
             self.close()
 
+    def doSweepState(self, value):
+        print "isChecked:",self.sweepState.isChecked()
+        if value:
+            print "    value:  TRUE"
+        else:
+            print "    value:  FALSE"
+
+
+
+    
+
     def doRunState(self):
         """
         Connected to runState.clicked.  Toggle between "Running" and "Waiting",
         and then signal the worker the new state
         """
+        print "BEGIN doRunState:  self.runState.text() =",self.runState.text()
         if self.runState.text() == "Running":
+            print "       doRunState:  change to Waiting"
             self.runState.setText("Waiting")
             self.runState.setStyleSheet(ssColor("lightPink"))
         else:
+            print "       doRunState:  change to Running"
             self.runState.setText("Running")
             self.runState.setStyleSheet(ssColor("lightGreen"))
-        self.signalToWorker.emit(self.runState.text())
+            self.signalToWorker.emit("PleaseDoASweep")
+        print "EEEEE doRunState:  self.runState.text() =",self.runState.text()
 
     def iFreqChanged(self, index):
         self.iFreqIndex = index
-        self.iFreqResID = self.rc.roachController.resIDs[index]
-        self.iFreqFreq  = self.rc.roachController.freqList[index]
-        self.iFreqAtten = self.rc.roachController.attenList[index]
+        self.iFreqResID = self.rchc.roachController.resIDs[index]
+        self.iFreqFreq  = self.rchc.roachController.freqList[index]
+        self.iFreqAtten = self.rchc.roachController.attenList[index]
 
     def signalFromWorker(self,data):
-        print "begin signalFromWorker"
-        print "type of data is ",type(data)
-        print "data.keys()=",data.keys()
-
-        handle = open('IQDataDict.json','w')
-        json_tricks.dump(data, handle)
-        handle.close()
-        
+        #handle = open('IQDataDict.json','w')
+        #json_tricks.dump(data, handle)
+        #handle.close()
+        self.recentIQData = data['iqData']
+        self.updatePlots()
+        #self.doSweepState(True)
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.updatePlots()
@@ -139,20 +161,24 @@ class Worker(QThread):
 
     def getSignal(self,value):
         print "Worker.getSignal:  value=",value
-        if value == "Running":
+        if value == "PleaseDoASweep":
             timestamp = datetime.datetime.now()
-            print "Now call clTools.performIQSweep"
+            rchc = self.parent.rchc
+            LO_span = self.parent.loSpan.value()*1e3
+            rchc.config.set(rchc.roachString, "sweeplospan",str(LO_span))
+            LO_step = self.parent.loStep.value()*1e3
+            rchc.config.set(rchc.roachString, "sweeplostep",str(LO_step))
             t0 = datetime.datetime.now()
-            iqData = clTools.performIQSweep(self.parent.rc)
+            print "----------------> do a sweep"
+            iqData = clTools.performIQSweep(self.parent.rchc)
             t1 = datetime.datetime.now()
             dt = t1-t0
-            print "dt =",dt
             data = {
                 'timestamp':timestamp,
                 'iqData':iqData
             }
             self.signalFromWorker.emit(data)
-
+            
 def ssColor(color):
     retval = "QWidget {background-color:"
     retval += color
