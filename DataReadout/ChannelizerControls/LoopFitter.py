@@ -2,6 +2,18 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares
+    
+parameterNames = OrderedDict()
+parameterNames["q"] = 0
+parameterNames["f0"] = 1
+parameterNames["a"] = 2
+parameterNames["v"] = 3
+parameterNames["c"] = 4
+parameterNames["theta"] = 5
+parameterNames["gi"] = 6
+parameterNames["gq"] = 7
+parameterNames["ic"] = 8
+parameterNames["qc"] = 9
 
 def mazinResonance(x, q, f0, a, v, c, theta, gi, gq, ic, qc):
     dx = (x-f0)/f0
@@ -89,12 +101,13 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
                      sigma, sigma, fmt='b.')
     #ax[0,0].plot(loopFit['iValues'],loopFit['qValues'], color='b')   
     #ax[1,0].plot(1e6*(fvMeasured-f0Guess), vMeasured, color='b')
-    ax[1,0].plot((fvMeasured-f0Guess), vMeasured,'bo')
+    ax[1,0].plot((fvMeasured-f0Guess)/1e3, vMeasured,'bo')
     #ax[0,1].plot(1e6*(loopFit['fValues']-f0Guess), aMeasured, label='measured')
-    ax[0,1].plot((loopFit['fValues']-f0Guess), aMeasured, 'bo')
+    ax[0,1].plot((loopFit['fValues']-f0Guess)/1e3, aMeasured, 'bo')
     #ax[1,1].plot(1e6*(loopFit['fValues']-f0Guess), pMeasured, color='b')
-    ax[1,1].plot((loopFit['fValues']-f0Guess), pMeasured, 'bo')
-
+    ax[1,1].plot((loopFit['fValues']-f0Guess)/1e3, pMeasured, 'bo')
+    ax[1,1].set_xlabel("f (kHz)")
+    
     # Plot guess and fit loops
     lineColor = {"guess":'r', "fit":'g'}
     for loopType in ["fit"]:
@@ -132,12 +145,12 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
         ax[0,0].plot(iFit, qFit, color=lineColor[loopType])
         fvFit, vFit, aFit, pFit = getFVAP(fFit, iFit, qFit)
         # plot velocity
-        ax[1,0].plot((fvFit-f0Guess), vFit, color=lineColor[loopType])
+        ax[1,0].plot((fvFit-f0Guess)/1e3, vFit, color=lineColor[loopType])
         # plot amplitude
-        ax[0,1].plot((fFit-f0Guess), aFit, color=lineColor[loopType], label=loopType)
+        ax[0,1].plot((fFit-f0Guess)/1e3, aFit, color=lineColor[loopType], label=loopType)
         ax[0,1].legend()
         # plot phase in degrees
-        ax[1,1].plot((fFit-f0Guess), pFit, color=lineColor[loopType])    
+        ax[1,1].plot((fFit-f0Guess)/1e3, pFit, color=lineColor[loopType])    
         plt.tight_layout()
         plt.savefig(pfn, dpi=300)
 
