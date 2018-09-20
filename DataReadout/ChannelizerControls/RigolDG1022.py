@@ -62,7 +62,16 @@ class RigolDG1022():
         """
         # rv will be a line like this:
         # u'CH1:"ARB,1.234000e+03,5.000000e-01,-1.500000e+00"\n'
-        rv = self.be.query("APPL?")
+
+        # Try the query three times, catching time outs
+        rv = None
+        for i in range(3):
+            try:
+                rv = self.be.query("APPL?")
+                break
+            except OSError:
+                if i == 2:
+                    raise Exception("query timed out three times")
         rvl = rv.split(":")
         vals = rvl[1][1:-2].split(',')
         if vals[0] == 'ARB':
