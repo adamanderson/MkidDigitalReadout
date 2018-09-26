@@ -7,7 +7,7 @@ import H5IO
 reload(H5IO)
 import clTools
 reload(clTools)
-dq = deque()
+dqToWorker = deque()
 
 class ResonancePlotWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
@@ -23,17 +23,14 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.bottomPlot = self.graphicsLayoutWidget.addPlot()
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
-        self.runState.clicked.connect(self.doRunState)
-        self.runState.setText("Running")
-        self.doRunState()
 
         self.sweepState.clicked.connect(self.doSweepState)
-        self.doSweepState(False)
-        #self.setGeometry(300, 300, 250, 150)
+        self.sweepState.setText("Ready to Sweep")
+
         self.setWindowTitle('ResonancePlot')
         self.worker = Worker(self)
         self.worker.signalFromWorker.connect(self.signalFromWorker)
-
+        self.worker.start()
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(500) 
@@ -52,8 +49,6 @@ class ResonancePlotWindow(QtGui.QMainWindow):
 
         LO_span = self.rchc.config.getfloat(rchc.roachString,"sweeplospan")
         LO_step = self.rchc.config.getfloat(rchc.roachString,"sweeplostep")
-        print "LO_span=",LO_span
-        print "LO_step=",LO_step
         self.loStep.setValue(LO_step/1e3)
         self.loSpan.setValue(LO_span/1e3)
         self.show()
@@ -71,37 +66,14 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         """
         if not self.stopping:
             self.stopping = True
-            self.signalToWorker.emit("StopFromDoStop")
+            self.signalToWorker.emit("PleaseStop")
             self.timer.stop()
             self.close()
 
-    def doSweepState(self, value):
-        print "isChecked:",self.sweepState.isChecked()
-        if value:
-            print "    value:  TRUE"
-        else:
-            print "    value:  FALSE"
+    def doSweepState(self):
+        self.sweepState.setText("We are Sweeping")
+        dqToWorker.append("PleaseDoASweep")
 
-
-
-    
-
-    def doRunState(self):
-        """
-        Connected to runState.clicked.  Toggle between "Running" and "Waiting",
-        and then signal the worker the new state
-        """
-        print "BEGIN doRunState:  self.runState.text() =",self.runState.text()
-        if self.runState.text() == "Running":
-            print "       doRunState:  change to Waiting"
-            self.runState.setText("Waiting")
-            self.runState.setStyleSheet(ssColor("lightPink"))
-        else:
-            print "       doRunState:  change to Running"
-            self.runState.setText("Running")
-            self.runState.setStyleSheet(ssColor("lightGreen"))
-            self.signalToWorker.emit("PleaseDoASweep")
-        print "EEEEE doRunState:  self.runState.text() =",self.runState.text()
 
     def iFreqChanged(self, index):
         self.iFreqIndex = index
@@ -115,7 +87,8 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         #handle.close()
         self.recentIQData = data['iqData']
         self.updatePlots()
-        #self.doSweepState(True)
+        self.sweepState.setText("Ready to Sweep")
+
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.updatePlots()
@@ -160,25 +133,37 @@ class Worker(QThread):
         self.parent.signalToWorker.connect(self.getSignal)
 
     def getSignal(self,value):
-        print "Worker.getSignal:  value=",value
-        if value == "PleaseDoASweep":
-            timestamp = datetime.datetime.now()
-            rchc = self.parent.rchc
-            LO_span = self.parent.loSpan.value()*1e3
-            rchc.config.set(rchc.roachString, "sweeplospan",str(LO_span))
-            LO_step = self.parent.loStep.value()*1e3
-            rchc.config.set(rchc.roachString, "sweeplostep",str(LO_step))
-            t0 = datetime.datetime.now()
-            print "----------------> do a sweep"
-            iqData = clTools.performIQSweep(self.parent.rchc)
-            t1 = datetime.datetime.now()
-            dt = t1-t0
-            data = {
-                'timestamp':timestamp,
-                'iqData':iqData
-            }
-            self.signalFromWorker.emit(data)
-            
+        if value == "PleaseStop":
+            self.keepAlive = False
+        else:
+            print "Worker.getSignal unknown signal: ",value
+
+    def run(self):
+        while self.keepAlive:
+            try:
+                message = dqToWorker.popleft()
+                self.doASweep()
+                dqToWorker.clear()
+            except IndexError:
+                time.sleep(0.1)
+                
+    def doASweep(self):
+        timestamp = datetime.datetime.now()
+        rchc = self.parent.rchc
+        LO_span = self.parent.loSpan.value()*1e3
+        rchc.config.set(rchc.roachString, "sweeplospan",str(LO_span))
+        LO_step = self.parent.loStep.value()*1e3
+        rchc.config.set(rchc.roachString, "sweeplostep",str(LO_step))
+        t0 = datetime.datetime.now()
+        iqData = clTools.performIQSweep(self.parent.rchc)
+        t1 = datetime.datetime.now()
+        dt = t1-t0
+        data = {
+            'timestamp':timestamp,
+            'iqData':iqData
+        }
+        self.signalFromWorker.emit(data)
+        
 def ssColor(color):
     retval = "QWidget {background-color:"
     retval += color

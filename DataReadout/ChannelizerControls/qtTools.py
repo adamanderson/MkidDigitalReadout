@@ -12,6 +12,8 @@ import PhasePlotWindow
 reload(PhasePlotWindow)
 import ResonancePlotWindow
 reload(ResonancePlotWindow)
+import SampleWindow
+reload(SampleWindow)
 from PyQt4 import QtGui
 
 if QtGui.QApplication.type() == 0:
@@ -65,4 +67,8 @@ def plotDemo():
     label.move(50,20)
     widget.show()
     return widget
-    
+
+def sampleWindow():
+    sampleWindow = SampleWindow.SampleWindow()
+    sampleWindow.show()
+    return sampleWindow

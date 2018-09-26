@@ -96,10 +96,10 @@
       <item>
        <widget class="QPushButton" name="sweepState">
         <property name="text">
-         <string>AAA</string>
+         <string>sweepState?</string>
         </property>
         <property name="checkable">
-         <bool>true</bool>
+         <bool>false</bool>
         </property>
        </widget>
       </item>
@@ -155,13 +155,6 @@
       </item>
       <item>
        <widget class="QComboBox" name="iFreq"/>
-      </item>
-      <item>
-       <widget class="QPushButton" name="runState">
-        <property name="text">
-         <string>runState?</string>
-        </property>
-       </widget>
       </item>
       <item>
        <widget class="QPushButton" name="stop">
