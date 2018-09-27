@@ -248,15 +248,13 @@ def getDewarTemperature(cryoBossDir="/mnt/ppd-115696/log"):
     Assume that it is a CryoBoss csv file.  The datetime string is in position 0 and 
     the temperature is in position 3. 
 
-    Input:  cryoBossDir, defaults to mount locaion on cmbadr at Fermilab
+    Input:  cryoBossDir, defaults to mount location on cmbadr at Fermilab
     
     Ouput:  dictionary with keys "timestamp" and "faat"
     """
     retval = {"timestamp":None, "faat":None}
     newestFile = max(glob.iglob(cryoBossDir+"/*"), key=os.path.getmtime)
-    print newestFile
     lastLine = tail(newestFile)
-    print lastLine
     lll = lastLine.split(",")
     retval['timestamp'] = dateutil.parser.parse(lll[0])
     retval['faat'] = float(lll[3])

@@ -25,15 +25,21 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.stop.setStyleSheet(ssColor("red"))
 
         self.sweepState.clicked.connect(self.doSweepState)
+        self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")
 
-        self.setWindowTitle('ResonancePlot')
+        self.sweepProgressBar.setMinimum(0)
+        self.sweepProgressBar.setMaximum(100)
+        self.sweepProgressBar.setValue(100)
+        self.nSweepStep = 0
+        self.setWindowTitle('ResonancePlot')        
         self.worker = Worker(self)
         self.worker.signalFromWorker.connect(self.signalFromWorker)
         self.worker.start()
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
-        self.timer.start(500) 
+        self.timer.start(200)
+        
         items = []
         for resID,resFreq,atten in zip(rchc.roachController.resIDs,
                                  rchc.roachController.freqList,
@@ -71,7 +77,16 @@ class ResonancePlotWindow(QtGui.QMainWindow):
             self.close()
 
     def doSweepState(self):
-        self.sweepState.setText("We are Sweeping")
+        LO_span = self.rchc.config.getfloat(self.rchc.roachString,"sweeplospan")
+        LO_step = self.rchc.config.getfloat(self.rchc.roachString,"sweeplostep")
+        self.nSweepStep = LO_span/LO_step
+        self.expectedSweepSeconds = int(self.nSweepStep)*0.4 # Expect 0.4 seconds per sweep step
+        self.tsSweep = datetime.datetime.now()
+        dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsSweep)[:-5]
+        self.callIQTakeAvgTime.setText(dText)
+        self.sweepState.setText("Sweeping %d steps"%(int(self.nSweepStep)))
+        self.sweepState.setStyleSheet(ssColor("lightPink"))
+        self.sweepProgressBar.setValue(0)
         dqToWorker.append("PleaseDoASweep")
 
 
@@ -87,8 +102,10 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         #handle.close()
         self.recentIQData = data['iqData']
         self.updatePlots()
+        self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")
-
+        self.nSweepStep = 0
+        
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.updatePlots()
@@ -122,7 +139,14 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         n = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
         self.datetimeClock.setText(dText)
-
+        # If a sweep is in progress, update the progress bar
+        if self.nSweepStep == 0:
+            self.sweepProgressBar.setValue(100)
+        else:
+            elapsedSweepTime = n - self.tsSweep
+            percent = 100*elapsedSweepTime.total_seconds()/self.expectedSweepSeconds
+            self.sweepProgressBar.setValue(percent)
+            
 class Worker(QThread):
     signalFromWorker = pyqtSignal(dict)
     def __init__(self, parent, verbose=False):
