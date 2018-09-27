@@ -19,6 +19,7 @@ import ConfigParser, datetime, dateutil, glob, os, pickle, sys, time, warnings, 
 import numpy as np
 from autoZdokCal import loadDelayCal, findCal
 from myQdr import Qdr as myQdr
+import LoopFitter
 
 # Modules from this package that may be changed during an interactive session
 import RoachConnection
@@ -127,7 +128,7 @@ def loadFIRs(rchc):
     rchc.loadFIRs()
 
 
-def performIQSweep(rchc, saveToFile=None):
+def performIQSweep(rchc, saveToFile=None, doLoopFit=True):
     LO_freq = rchc.roachController.LOFreq
     LO_span = rchc.config.getfloat(rchc.roachString,'sweeplospan')
     LO_step = rchc.config.getfloat(rchc.roachString,'sweeplostep')
@@ -152,6 +153,17 @@ def performIQSweep(rchc, saveToFile=None):
     if saveToFile is not None:
         print "save to file"
         saveIQSweepToFile(rchc, iqData, saveToFile)
+    
+    if doLoopFit:
+        iqData['loopFits'] = []
+        freqOffset = iqData['freqOffsets']
+        for iFreq in range(len(iqData['freqList'])):
+            ia = iqData['I'][iFreq]
+            qa = iqData['Q'][iFreq]
+            freqList = iqData['freqList'][iFreq]
+            freqs = freqList + freqOffset
+            loopFit = LoopFitter.loopFitter(freqs, ia, qa)
+            iqData['loopFits'].append(loopFit)
     return iqData
 
 def takeLoopData(rchc, fnPrefix):

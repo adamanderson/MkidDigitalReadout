@@ -18,9 +18,9 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.rchc = rchc
         thisDir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(thisDir,'ResonancePlotWidget.ui'), self)
-        self.topPlot =    self.graphicsLayoutWidget.addPlot()
-        self.graphicsLayoutWidget.nextRow()
-        self.bottomPlot = self.graphicsLayoutWidget.addPlot()
+        #self.topPlot =    self.graphicsLayoutWidget.addPlot()
+        #self.graphicsLayoutWidget.nextRow()
+        #self.bottomPlot = self.graphicsLayoutWidget.addPlot()
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
 
@@ -114,26 +114,49 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         # self.recentIQData is a dictionary of:  I and Q, where I and Q are 2d
         # I[iFreq][iPt] - iFreq is the frequency
         if self.recentIQData is not None:
-            self.topPlot.clear()
-            self.bottomPlot.clear()
+            self.graphicsLayoutWidget.clear()
             iList = self.recentIQData['I'][self.iFreqIndex]
             qList = self.recentIQData['Q'][self.iFreqIndex]
+            freqOffsets = self.recentIQData['freqOffsets']
             if self.wtp == "IQ":
-                self.topPlot.plot(iList)
-                self.topPlot.setLabel('left','I (ADUs)')
-                self.bottomPlot.plot(qList)
-                self.bottomPlot.setLabel('left','Q (ADUs)')
+                self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
+                self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
+                self.topPlot.plot(freqOffsets, iList)
+                self.topPlot.setLabel('left','I', 'ADUs')
+                self.topPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
+                self.bottomPlot.plot(freqOffsets, qList)
+                self.bottomPlot.setLabel('left','Q','ADUs')
+                self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
             elif self.wtp == "MagPhase":
                 iq = np.array(iList) + 1j*np.array(qList)
                 amplitude = np.absolute(iq)
                 angle = np.angle(iq,deg=True)
-                self.topPlot.plot(amplitude)
-                self.topPlot.setLabel('left','amplitude (ADUs)')
-                self.bottomPlot.plot(angle)
-                self.bottomPlot.setLabel('left','phase (degrees)')
+                self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
+                self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
+                self.topPlot.plot(freqOffsets, amplitude)
+                self.topPlot.setLabel('left','amplitude', 'ADUs')
+                self.topPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
+                self.bottomPlot.plot(freqOffsets, angle)
+                self.bottomPlot.setLabel('left','phase', 'degrees')
+                self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
+            elif self.wtp == "LoopVelocity":
+                print "plot LoopVelocity"
+                self.leftPlot =    self.graphicsLayoutWidget.addPlot(0,0)
+                self.rightPlot = self.graphicsLayoutWidget.addPlot(0,1)
+                self.leftPlot.plot(iList, qList)
+                self.leftPlot.setLabel('left','Q', 'ADUs')
+                self.leftPlot.setLabel('bottom','I', 'ADUs')
 
-            tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
-            self.topPlot.setTitle("%4d %s %5.1f"%tup)
+                dfs = freqOffsets[1:]-freqOffsets[:-1]
+                dis = iList[1:]-iList[:-1]
+                dqs = qList[1:]-qList[:-1]
+                vs = np.sqrt(dis*dis+dqs*dqs)/dfs
+                favgs = 0.5*(freqOffsets[1:]+freqOffsets[:-1])
+                self.rightPlot.plot(favgs, vs)
+                self.rightPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
+                self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
+            #tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
+            #self.topPlot.setTitle("%4d %s %5.1f"%tup)
                 
     def doTimer(self):
         n = datetime.datetime.now()

@@ -55,6 +55,11 @@
        <widget class="QComboBox" name="whatToPlot">
         <item>
          <property name="text">
+          <string>LoopVelocity</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
           <string>IQ</string>
          </property>
         </item>
