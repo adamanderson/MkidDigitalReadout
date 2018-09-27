@@ -15,10 +15,12 @@ and if you make changes to code in this file:
 > reload(clTools)
 
 """
-import os, sys, time, warnings, datetime, pickle, socket, ConfigParser
+import ConfigParser, datetime, dateutil, glob, os, pickle, sys, time, warnings, socket
 import numpy as np
 from autoZdokCal import loadDelayCal, findCal
 from myQdr import Qdr as myQdr
+
+# Modules from this package that may be changed during an interactive session
 import RoachConnection
 reload(RoachConnection)
 import WritePhaseData
@@ -225,3 +227,29 @@ def takePhaseData(rchc, nToDo, freqChan, duration, fileNamePrefix):
         fileName = "%s-%04d"%(fileNamePrefix,i)
         print i, fileName
         doOnePhaseSnapshot(rchc, freqChan, duration, ".", fileName, format='hdf5') 
+
+def tail(filepath):
+        with open(filepath, "rb") as f:
+            first = f.readline()      # Read the first line.
+            f.seek(-2, 2)             # Jump to the second last byte.
+            while f.read(1) != b"\n": # Until EOL is found...
+                try:
+                    f.seek(-2, 1)     # ...jump back the read byte plus one more.
+                except IOError:
+                    f.seek(-1, 1)
+                    if f.tell() == 0:
+                        break
+            last = f.readline()       # Read last line.
+        return last
+
+def getDewarTemperature(cryoBossDir="/mnt/ppd-115696/log"):
+    retval = {"timestamp":None, "faat":None}
+    newestFile = max(glob.iglob(cryoBossDir+"/*"), key=os.path.getmtime)
+    print newestFile
+    lastLine = tail(newestFile)
+    print lastLine
+    lll = lastLine.split(",")
+    retval['timestamp'] = dateutil.parser.parse(lll[0])
+    retval['faat'] = float(lll[3])
+    return retval
+
