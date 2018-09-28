@@ -9,6 +9,10 @@ import clTools
 reload(clTools)
 dqToWorker = deque()
 
+import pyqtgraph as pg
+pg.setConfigOption('background', 'w')
+pg.setConfigOption('foreground', 'k')
+
 class ResonancePlotWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
     def __init__(self, rchc):
@@ -140,7 +144,6 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 self.bottomPlot.setLabel('left','phase', 'degrees')
                 self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
             elif self.wtp == "LoopVelocity":
-                print "plot LoopVelocity"
                 self.leftPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.rightPlot = self.graphicsLayoutWidget.addPlot(0,1)
                 self.leftPlot.plot(iList, qList)
@@ -155,6 +158,11 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 self.rightPlot.plot(favgs, vs)
                 self.rightPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
                 self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
+                print "recent keys = ",self.recentIQData.keys()
+                if self.recentIQData.has_key("loopFits"):
+                    iFit = self.recentIQData['loopFits'][self.iFreqIndex]['iFit']
+                    qFit = self.recentIQData['loopFits'][self.iFreqIndex]['qFit']
+                    self.leftPlot.plot(iFit, qFit,  pen='b', symbol='x', symbolPen='b', symbolBrush=0.2, name='red')
             #tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
             #self.topPlot.setTitle("%4d %s %5.1f"%tup)
                 

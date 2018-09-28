@@ -90,7 +90,6 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
     fMax = loopFit['fValues'].max()
     df = 0.05*(fMax-fMin)
     fFit = np.linspace(fMin-df, fMax+df, nFit)
-    
     fig,ax = plt.subplots(2,2)
     # get velocity, amplitude, and phase
     fvMeasured, vMeasured, aMeasured, pMeasured = \
@@ -172,7 +171,7 @@ def fittingFunction(parameters):
     retval = np.abs(iq-measuredIQs)
     return retval
     
-def loopFitter(fValues, iValues, qValues, verbose=0):
+def loopFitter(fValues, iValues, qValues, verbose=0, nFit=2000):
     global measuredFrequencies, measuredIQs
     retval = OrderedDict()
     retval['fValues'] = fValues
@@ -185,6 +184,34 @@ def loopFitter(fValues, iValues, qValues, verbose=0):
     measuredIQs = iValues + 1j*qValues
     nsq = least_squares(fittingFunction, guessValues, verbose=verbose, x_scale='jac')
     retval['nsq'] = nsq
+    print "loop fitter:  nFit=",nFit
+    if nFit > 0:
+        fMin = retval['fValues'].min()
+        fMax = retval['fValues'].max()
+        df = 0.05*(fMax-fMin)
+        fFit = np.linspace(fMin-df, fMax+df, nFit)
+        retval['fFit'] = fFit
+        param = retval['nsq'].x
+        q     = param[0]
+        f0    = param[1]
+        a     = param[2]
+        v     = param[3]
+        c     = param[4]
+        theta = param[5]
+        gi    = param[6]
+        gq    = param[7]
+        ic    = param[8]
+        qc    = param[9]
+        iFit = np.zeros(nFit)
+        qFit = np.zeros(nFit)
+        for (i,f) in enumerate(fFit):
+            iq = mazinResonance(f, q, f0, a, v, c, theta, gi, gq, ic, qc)
+            iFit[i] = iq.real
+            qFit[i] = iq.imag
+        retval['iFit'] = iFit
+        retval['qFit'] = qFit
+        print "LoopFitter:  add iFit and qFit to retval"
+        print "types of ifit is ",type(retval['iFit'])
     return retval
 
 if __name__ == "__main__":

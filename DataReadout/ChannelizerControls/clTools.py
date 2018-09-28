@@ -19,9 +19,9 @@ import ConfigParser, datetime, dateutil, glob, os, pickle, sys, time, warnings, 
 import numpy as np
 from autoZdokCal import loadDelayCal, findCal
 from myQdr import Qdr as myQdr
-import LoopFitter
-
 # Modules from this package that may be changed during an interactive session
+import LoopFitter
+reload(LoopFitter)
 import RoachConnection
 reload(RoachConnection)
 import WritePhaseData
@@ -162,7 +162,7 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True):
             qa = iqData['Q'][iFreq]
             freqList = iqData['freqList'][iFreq]
             freqs = freqList + freqOffset
-            loopFit = LoopFitter.loopFitter(freqs, ia, qa)
+            loopFit = LoopFitter.loopFitter(freqs, ia, qa, nFit=2000)
             iqData['loopFits'].append(loopFit)
     return iqData
 
