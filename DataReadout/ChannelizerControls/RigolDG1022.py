@@ -55,6 +55,19 @@ class RigolDG1022():
         readbackValue = self.getDCLevel()
         if dcLevel != readbackValue:
             raise ValueError("dcLevel=%f but readbackValue=%f"%(dcLevel, readbackValue))
+
+    def sendQuery(self, query):
+        """Try the query three times, catching time outs"""
+        rv = None
+        for i in range(3):
+            try:
+                rv = self.be.query(query)
+                break
+            except OSError:
+                if i == 2:
+                    raise Exception("query timed out three times")
+        return rv
+    
     def getDCLevel(self):
         """ 
         Return the DC level in volts, or throw an exception if it is not
@@ -62,22 +75,21 @@ class RigolDG1022():
         """
         # rv will be a line like this:
         # u'CH1:"ARB,1.234000e+03,5.000000e-01,-1.500000e+00"\n'
-
-        # Try the query three times, catching time outs
-        rv = None
-        for i in range(3):
-            try:
-                rv = self.be.query("APPL?")
-                break
-            except OSError:
-                if i == 2:
-                    raise Exception("query timed out three times")
+        rv = self.sendQuery("APPL?")
         rvl = rv.split(":")
         vals = rvl[1][1:-2].split(',')
         if vals[0] == 'ARB':
             retval = float(vals[3])
             return retval
         raise ValueError("ARB is not being generated")
+
+    def getOutput(self):
+        """
+        Return True if output is enabled, False if output is not enables
+        """
+        rv = self.be.query("OUTPUT?")
+        return rv.startswith("ON")
+    
 if __name__ == "__main__":
     rigol = RigolDG1022()
     
