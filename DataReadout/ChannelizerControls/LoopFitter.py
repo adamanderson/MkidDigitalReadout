@@ -184,7 +184,6 @@ def loopFitter(fValues, iValues, qValues, verbose=0, nFit=2000):
     measuredIQs = iValues + 1j*qValues
     nsq = least_squares(fittingFunction, guessValues, verbose=verbose, x_scale='jac')
     retval['nsq'] = nsq
-    print "loop fitter:  nFit=",nFit
     if nFit > 0:
         fMin = retval['fValues'].min()
         fMax = retval['fValues'].max()
@@ -210,8 +209,6 @@ def loopFitter(fValues, iValues, qValues, verbose=0, nFit=2000):
             qFit[i] = iq.imag
         retval['iFit'] = iFit
         retval['qFit'] = qFit
-        print "LoopFitter:  add iFit and qFit to retval"
-        print "types of ifit is ",type(retval['iFit'])
     return retval
 
 if __name__ == "__main__":
