@@ -141,6 +141,7 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True):
     LO_freq = rchc.roachController.LOFreq
     LO_span = rchc.config.getfloat(rchc.roachString,'sweeplospan')
     LO_step = rchc.config.getfloat(rchc.roachString,'sweeplostep')
+    print "in clTools:  LO_span=",LO_span, "LO_step=",LO_step, LO_span/LO_step
     LO_start = LO_freq - LO_span/2.
     LO_end = LO_freq + LO_span/2.
     iqData = rchc.roachController.performIQSweep(LO_start/1.e6,

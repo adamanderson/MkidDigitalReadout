@@ -28,7 +28,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
 
-        self.sweepState.clicked.connect(self.doSweepState)
+        self.sweepState.clicked.connect(self.doSweep)
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")
 
@@ -61,9 +61,26 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         LO_step = self.rchc.config.getfloat(rchc.roachString,"sweeplostep")
         self.loStep.setValue(LO_step/1e3)
         self.loSpan.setValue(LO_span/1e3)
+        self.loStep.valueChanged.connect(self.updateNStep)
+        self.loSpan.valueChanged.connect(self.updateNStep)        
+        self.updateNStep()
         self.show()
 
+    def getNStepFromGui(self):
+        loStep = self.loStep.value()
+        loSpan = self.loSpan.value()
+        self.rchc.config.set(self.rchc.roachString, "sweeplospan",str(loSpan*1e3))
+        self.rchc.config.set(self.rchc.roachString, "sweeplostep",str(loStep*1e3))
+        try:
+            nStep = int(loSpan/loStep)
+        except ZeroDivisionError:
+            nStep = -1
+        return nStep
 
+    def updateNStep(self):
+        msg = "nStep = %d"%self.getNStepFromGui()
+        self.nStep.setText(msg)
+        
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -80,10 +97,8 @@ class ResonancePlotWindow(QtGui.QMainWindow):
             self.timer.stop()
             self.close()
 
-    def doSweepState(self):
-        LO_span = self.rchc.config.getfloat(self.rchc.roachString,"sweeplospan")
-        LO_step = self.rchc.config.getfloat(self.rchc.roachString,"sweeplostep")
-        self.nSweepStep = LO_span/LO_step
+    def doSweep(self):
+        self.nSweepStep = self.getNStepFromGui()
         self.expectedSweepSeconds = int(self.nSweepStep)*0.4 # Expect 0.4 seconds per sweep step
         self.tsSweep = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsSweep)[:-5]
@@ -158,7 +173,6 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 self.rightPlot.plot(favgs, vs)
                 self.rightPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
                 self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
-                print "recent keys = ",self.recentIQData.keys()
                 if self.recentIQData.has_key("loopFits"):
                     iFit = self.recentIQData['loopFits'][self.iFreqIndex]['iFit']
                     qFit = self.recentIQData['loopFits'][self.iFreqIndex]['qFit']
@@ -205,10 +219,6 @@ class Worker(QThread):
     def doASweep(self):
         timestamp = datetime.datetime.now()
         rchc = self.parent.rchc
-        LO_span = self.parent.loSpan.value()*1e3
-        rchc.config.set(rchc.roachString, "sweeplospan",str(LO_span))
-        LO_step = self.parent.loStep.value()*1e3
-        rchc.config.set(rchc.roachString, "sweeplostep",str(LO_step))
         t0 = datetime.datetime.now()
         iqData = clTools.performIQSweep(self.parent.rchc)
         t1 = datetime.datetime.now()
