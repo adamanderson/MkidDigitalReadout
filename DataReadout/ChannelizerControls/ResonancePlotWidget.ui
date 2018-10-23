@@ -18,7 +18,7 @@
     <rect>
      <x>0</x>
      <y>530</y>
-     <width>905</width>
+     <width>913</width>
      <height>72</height>
     </rect>
    </property>
@@ -80,7 +80,7 @@
       <item>
        <widget class="QDoubleSpinBox" name="loSpan">
         <property name="maximum">
-         <double>1000.000000000000000</double>
+         <double>20000.000000000000000</double>
         </property>
        </widget>
       </item>
@@ -94,7 +94,7 @@
       <item>
        <widget class="QDoubleSpinBox" name="loStep">
         <property name="maximum">
-         <double>250.000000000000000</double>
+         <double>500.000000000000000</double>
         </property>
        </widget>
       </item>
