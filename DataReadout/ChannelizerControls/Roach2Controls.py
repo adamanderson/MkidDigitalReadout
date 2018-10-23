@@ -83,7 +83,7 @@ BUGS:
 """
 
 import sys,os,time,datetime,struct,math,calendar
-import warnings, inspect
+import warnings, inspect, logging
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.special
@@ -131,6 +131,7 @@ class Roach2Controls:
         self.attenVal = {1:None, 2:None, 3:None, 4:None}
         
     def connect(self):
+        casperfpga.utils.LOGGER.setLevel(logging.INFO)
         try:
             self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=3.)
         except:
@@ -139,6 +140,7 @@ class Roach2Controls:
         self.fpga._timeout = 50.
         if not self.fpga.is_running():
             print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
+            print 'Check logic in Roach2Controls -- did that previous message make sense?'
         else:
             self.fpga.get_system_information()
             #print self.fpga.snapshots
