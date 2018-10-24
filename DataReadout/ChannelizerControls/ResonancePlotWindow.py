@@ -7,6 +7,9 @@ import H5IO
 reload(H5IO)
 import clTools
 reload(clTools)
+import LoopFitter
+reload(LoopFitter)
+
 dqToWorker = deque()
 
 import pyqtgraph as pg
@@ -132,11 +135,21 @@ class ResonancePlotWindow(QtGui.QMainWindow):
     def updatePlots(self):
         # self.recentIQData is a dictionary of:  I and Q, where I and Q are 2d
         # I[iFreq][iPt] - iFreq is the frequency
+
+        # Here is documentation of options to the "plot" command
+        # http://pyqtgraph.org/documentation/_modules/pyqtgraph/graphicsItems/PlotDataItem.html#PlotDataItem
         if self.recentIQData is not None:
             self.graphicsLayoutWidget.clear()
             iList = self.recentIQData['I'][self.iFreqIndex]
             qList = self.recentIQData['Q'][self.iFreqIndex]
+            f0 = self.recentIQData['freqList'][self.iFreqIndex]
             freqOffsets = self.recentIQData['freqOffsets']
+            if self.recentIQData.has_key("loopFits"):
+                # fvap is a tuple of (interpolated frequency, iqVelocity, amplitude, phase) numpy arrays
+                fFit = self.recentIQData['loopFits'][self.iFreqIndex]['fFit']
+                iFit = self.recentIQData['loopFits'][self.iFreqIndex]['iFit']
+                qFit = self.recentIQData['loopFits'][self.iFreqIndex]['qFit']
+                fvap = LoopFitter.getFVAP(fFit, iFit, qFit)
             if self.wtp == "IQ":
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
@@ -161,7 +174,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
             elif self.wtp == "LoopVelocity":
                 self.leftPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.rightPlot = self.graphicsLayoutWidget.addPlot(0,1)
-                self.leftPlot.plot(iList, qList)
+                self.leftPlot.plot(iList, qList, symbol='o', symbolPen='k', pen='k')
                 self.leftPlot.setLabel('left','Q', 'ADUs')
                 self.leftPlot.setLabel('bottom','I', 'ADUs')
 
@@ -170,13 +183,14 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 dqs = qList[1:]-qList[:-1]
                 vs = np.sqrt(dis*dis+dqs*dqs)/dfs
                 favgs = 0.5*(freqOffsets[1:]+freqOffsets[:-1])
-                self.rightPlot.plot(favgs, vs)
+                self.rightPlot.plot(favgs, vs, symbol='o', symbolPen='k', pen='k')
                 self.rightPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
                 self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
                 if self.recentIQData.has_key("loopFits"):
-                    iFit = self.recentIQData['loopFits'][self.iFreqIndex]['iFit']
-                    qFit = self.recentIQData['loopFits'][self.iFreqIndex]['qFit']
-                    self.leftPlot.plot(iFit, qFit,  pen='b', symbol='x', symbolPen='b', symbolBrush=0.2, name='red')
+                    self.leftPlot.plot(iFit, qFit, pen='r')
+                    fFreqOffsets = fvap[0]-f0
+                    v = fvap[1]
+                    self.rightPlot.plot(fFreqOffsets, v, pen='r')
             #tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
             #self.topPlot.setTitle("%4d %s %5.1f"%tup)
                 

@@ -139,6 +139,23 @@ def loadFIRs(rchc):
 
 
 def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
+    """
+
+    Returns:  iqData, a dictionary of
+    if doLoopFit is True:
+    'loopFits' -- an array of the loopFit for each frequency.
+    
+    each loopFit is from LoopFitter.loopFitter, a dictionary of:
+      'fValues' -- data frequency values, in Hz
+      'iValues' -- data I values, in ADUs
+      'qValues' -- data Q values, in ADUs
+      'guess'   -- the starting guess used for the fit
+      'nsq'     -- the result of least_squares imported from scipy.optimize
+      'fFit'    -- fit frequencies, nFit=2000 values, 10% larger than range of fValues
+      'iFit'    -- I values from the fit parameters stored in 'nsq'.x
+      'qFit'    -- I values from the fit parameters stored in 'nsq'.x
+
+    """
     LO_freq = rchc.roachController.LOFreq
     LO_span = rchc.config.getfloat(rchc.roachString,'sweeplospan')
     LO_step = rchc.config.getfloat(rchc.roachString,'sweeplostep')
@@ -168,7 +185,6 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
         saveIQSweepToFile(rchc, iqData, saveToFile)
     
     if doLoopFit:
-        if verbose: print "in clTools.performIQSweep:  start loop fitting"
         iqData['loopFits'] = []
         freqOffset = iqData['freqOffsets']
         for iFreq in range(len(iqData['freqList'])):
@@ -177,6 +193,7 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
             freqList = iqData['freqList'][iFreq]
             freqs = freqList + freqOffset
             if verbose: print "in clTools.performIQSweep:  call loopFitter iFreq =",iFreq
+            
             loopFit = LoopFitter.loopFitter(freqs, ia, qa, nFit=2000)
             if verbose: print "in clTools.performIQSweep:  done loopFitter iFreq =",iFreq
             iqData['loopFits'].append(loopFit)
