@@ -216,18 +216,23 @@ class Worker(QThread):
             except IndexError:
                 time.sleep(0.1)
                 
-    def doASweep(self):
+    def doASweep(self, verbose=False):
+        if verbose: print "ResonancePlotWindow.doASweep: begin"
         timestamp = datetime.datetime.now()
         rchc = self.parent.rchc
         t0 = datetime.datetime.now()
+        if verbose: print "ResonancePlotWindow.doASweep: call clTools.performIQSweep"
         iqData = clTools.performIQSweep(self.parent.rchc)
+        if verbose: print "ResonancePlotWindow.doASweep: call back from performIQSweep"
         t1 = datetime.datetime.now()
         dt = t1-t0
         data = {
             'timestamp':timestamp,
             'iqData':iqData
         }
+        if verbose: print "ResonancePlotWindow.doASweep: call signalFromWorker.emit"
         self.signalFromWorker.emit(data)
+        if verbose: print "ResonancePlotWindow.doASweep: done"
         
 def ssColor(color):
     retval = "QWidget {background-color:"

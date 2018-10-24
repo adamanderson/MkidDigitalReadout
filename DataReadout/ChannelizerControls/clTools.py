@@ -28,7 +28,8 @@ import RoachConnection
 reload(RoachConnection)
 import WritePhaseData
 reload(WritePhaseData)
-    
+
+
 def connect(roachNumber, configFile):
     rchc = RoachConnection.RoachConnection(roachNumber, configFile)
     return rchc
@@ -137,17 +138,19 @@ def loadFIRs(rchc):
     rchc.loadFIRs()
 
 
-def performIQSweep(rchc, saveToFile=None, doLoopFit=True):
+def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     LO_freq = rchc.roachController.LOFreq
     LO_span = rchc.config.getfloat(rchc.roachString,'sweeplospan')
     LO_step = rchc.config.getfloat(rchc.roachString,'sweeplostep')
-    print "in clTools:  LO_span=",LO_span, "LO_step=",LO_step, LO_span/LO_step
+    if verbose: print "in clTools.performIQSweep:  LO_span=",LO_span, "LO_step=",LO_step, LO_span/LO_step
     LO_start = LO_freq - LO_span/2.
     LO_end = LO_freq + LO_span/2.
+    if verbose: print "in clTools.performIQSweep:  call rchc.roachController.performIQSweep"
     iqData = rchc.roachController.performIQSweep(LO_start/1.e6,
                                                  LO_end/1.e6,
                                                  LO_step/1.e6,
                                                  verbose=False)
+    if verbose: print "in clTools.performIQSweep:  back from rchc.roachController.performIQSweep"
     iqData['LO_freq']   = LO_freq
     iqData['LO_span']   = LO_span
     iqData['LO_step']   = LO_step
@@ -161,10 +164,11 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True):
     iqData['freqList']  = rchc.roachController.freqList
     
     if saveToFile is not None:
-        print "save to file"
+        if verbose: print "save to file"
         saveIQSweepToFile(rchc, iqData, saveToFile)
     
     if doLoopFit:
+        if verbose: print "in clTools.performIQSweep:  start loop fitting"
         iqData['loopFits'] = []
         freqOffset = iqData['freqOffsets']
         for iFreq in range(len(iqData['freqList'])):
@@ -172,8 +176,11 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True):
             qa = iqData['Q'][iFreq]
             freqList = iqData['freqList'][iFreq]
             freqs = freqList + freqOffset
+            if verbose: print "in clTools.performIQSweep:  call loopFitter iFreq =",iFreq
             loopFit = LoopFitter.loopFitter(freqs, ia, qa, nFit=2000)
+            if verbose: print "in clTools.performIQSweep:  done loopFitter iFreq =",iFreq
             iqData['loopFits'].append(loopFit)
+    if verbose: print "in clTools.performIQSweep:  return"        
     return iqData
 
 def takeLoopData(rchc, fnPrefix):
