@@ -153,24 +153,34 @@ class ResonancePlotWindow(QtGui.QMainWindow):
             if self.wtp == "IQ":
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
-                self.topPlot.plot(freqOffsets, iList)
+                self.topPlot.plot(freqOffsets, iList, symbol='o', symbolPen='k', pen='k')
                 self.topPlot.setLabel('left','I', 'ADUs')
                 self.topPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                self.bottomPlot.plot(freqOffsets, qList)
+                self.bottomPlot.plot(freqOffsets, qList, symbol='o', symbolPen='k', pen='k')
                 self.bottomPlot.setLabel('left','Q','ADUs')
                 self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
+                if self.recentIQData.has_key("loopFits"):
+                    self.leftPlot.plot(iFit, qFit, pen='r')
+                    fFreqOffsets = fFit-f0
+                    self.topPlot.plot(fFreqOffsets, iFit, pen='r')
+                    self.bottomPlot.plot(fFreqOffsets, qFit, pen='r')
             elif self.wtp == "MagPhase":
                 iq = np.array(iList) + 1j*np.array(qList)
                 amplitude = np.absolute(iq)
                 angle = np.angle(iq,deg=True)
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
-                self.topPlot.plot(freqOffsets, amplitude)
+                self.topPlot.plot(freqOffsets, amplitude, symbol='o', symbolPen='k', pen='k')
                 self.topPlot.setLabel('left','amplitude', 'ADUs')
                 self.topPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                self.bottomPlot.plot(freqOffsets, angle)
+                self.bottomPlot.plot(freqOffsets, angle, symbol='o', symbolPen='k', pen='k')
                 self.bottomPlot.setLabel('left','phase', 'degrees')
                 self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
+                if self.recentIQData.has_key("loopFits"):
+                    self.leftPlot.plot(iFit, qFit, pen='r')
+                    fFreqOffsets = fFit-f0
+                    self.topPlot.plot(fFreqOffsets, fvap[2], pen='r')
+                    self.bottomPlot.plot(fFreqOffsets, fvap[3], pen='r')
             elif self.wtp == "LoopVelocity":
                 self.leftPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.rightPlot = self.graphicsLayoutWidget.addPlot(0,1)
