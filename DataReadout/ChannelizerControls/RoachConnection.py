@@ -65,7 +65,9 @@ class RoachConnection():
 
         assert(len(freqs) == len(np.unique(freqs))), "Frequencies in "+fn+" need to be unique."
         assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
+        
         argsSorted = np.argsort(freqs)  # sort them by frequency (I don't think this is needed)
+        print "in RoachConnection.py: freqs =",freqs[argsSorted]
         freqs = freqs[argsSorted]
         resIDs = resIDs[argsSorted]
         attens = attens[argsSorted]
