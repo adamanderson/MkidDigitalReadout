@@ -17,10 +17,11 @@ and if you make changes to code in this file:
 """
 import ConfigParser, datetime, dateutil, glob, logging, os, pickle, sys, time, warnings, socket
 import numpy as np
+import scipy.special
 from autoZdokCal import loadDelayCal, findCal
 from myQdr import Qdr as myQdr
-import Roach2Controls
 import casperfpga
+import Roach2Controls
 # Modules from this package that may be changed during an interactive session
 import LoopFitter
 reload(LoopFitter)
@@ -30,17 +31,29 @@ import WritePhaseData
 reload(WritePhaseData)
 
 
-def connect(roachNumber, configFile):
-    rchc = RoachConnection.RoachConnection(roachNumber, configFile)
-    return rchc
-
-def loadFreq(rchc):
-    rchc.loadFreq()
-
 def init(roachNumber, configFile):
+    """ 
+    Initialize the Roach board after powering up:
+     Upload the program from the config parameter 'fpgPath'
+     Call Roach2Controls.loadBoardNum and loadCurTimestamp
+     Call Roach2Controls.initializeV7UART
+     Call Roach2Controls.initializeV7MB
+     Call Roach2Controls.setLOFreq() then .loadLOFreq
+     Call Roach2Controls.changeAtten for DAC atten 1&2, ADC atten 1&2 (all to 31.75)
+     Call Roach2Controls.sendUARTCommand(0x4) to switch on ADC ZDOK Cal Ramp
+     set relative IQ scaling to 1
+     Call Roach2Controls.fpga.write_int('run',1)
+     do delays and calibrations
+     Call Roach2Controls.sendUARTCommand(0x5) to switch off ADC ZDOK Cal Ramp
+     run QDR calibrations
+     call clTools.connect() to define rchc
+     rchc.defineRoachLUTs
+     rchc.loadFIRs
+Return -- the resulting rchc
+    """
+    
     config = ConfigParser.ConfigParser()
     config.read(configFile)
-
     
     # Mimic what is done in InitStateMachine programV6
     roachString = 'Roach '+"%d"%roachNumber
@@ -118,7 +131,19 @@ def init(roachNumber, configFile):
     for qdrName in results.keys():
         if not results[qdrName]:
             raise ValueError
-    return True
+
+    rchc = connect(roachNumber, configFile)
+    rchc.loadFIRs()
+    return rchc
+
+def connect(roachNumber, configFile):
+    """ Make a connection and do not do any setup"""
+    rchc = RoachConnection.RoachConnection(roachNumber, configFile)
+    return rchc
+
+def loadFreq(rchc):
+    rchc.loadFreq()
+
 
     
 def setup(roachNumber, configFile):
@@ -131,7 +156,7 @@ def setup(roachNumber, configFile):
     rchc.loadFreq()
     rchc.defineRoachLUTs()
     rchc.defineDacLUTs()
-    rchc.loadFIRs()
+    #rchc.loadFIRs() moved to init
     return rchc
 
 def loadFIRs(rchc):
@@ -306,6 +331,103 @@ def getDewarTemperature(cryoBossDir="/mnt/ppd-115696/log"):
     retval['faat'] = float(lll[3])
     return retval
 
-def findResonancesSetup(fMin = 4.3e9, fMax = 4.5e9, nf = 10):
+def findResonancesSetup(rchc, fMin = 4.3e9, fMax = 4.5e9, nf = 10, fullScaleFraction=0.95):
+    loFreq = int(rchc.config.getfloat(rchc.roachString,'lo_freq'))
+    rchc.roachController.setLOFreq(loFreq)
+    rchc.roachController.loadLOFreq()
+
+    # Copy what is done in RoachConnection.loadFreq()
     freqs = np.linspace(fMin, fMax, num=nf, endpoint=False)
-    print "freqs =",freqs
+    
+    rchc.roachController.generateResonatorChannels(freqs) # fills in rchc.roachController.freqChannels
+    atten0 = 23.0
+    attens = atten0*np.ones(len(freqs))
+    rchc.roachController.attenList = attens
+    resIDs = np.arange(len(freqs))+1.0
+    rchc.roachController.resIDs = resIDs
+    phaseOffsList = np.zeros(len(freqs))
+    rchc.roachController.phaseOffsList = phaseOffsList
+    iqRatioList =  np.ones(len(freqs))
+    rchc.roachController.iqRatioList = iqRatioList
+
+    ## Generate tones to see what attenuation to use
+    nSamples = rchc.roachController.params['nDacSamplesPerCycle']*rchc.roachController.params['nLutRowsToUse']
+    sampleRate = rchc.roachController.params['dacSampleRate']
+    amplitudeList = attens
+    phaseList = None
+
+    dacFreqList = freqs - loFreq
+    dacFreqList[np.where(dacFreqList<0.)] += rchc.roachController.params['dacSampleRate']  #For +/- freq
+    # First, call it to get the quantized frequencies
+    toneDict = rchc.roachController.generateTones(dacFreqList, nSamples, sampleRate,
+                                                  amplitudeList, phaseList, iqRatioList, phaseOffsList)
+    dacFreqList = toneDict['quantizedFreqList']
+    freqs = dacFreqList + loFreq
+    rchc.roachController.generateResonatorChannels(freqs) # fills in rchc.roachController.freqChannels
+    
+    # Second, call it to measure the max amplitude
+    toneDict = rchc.roachController.generateTones(dacFreqList, nSamples, sampleRate,
+                                                  amplitudeList, phaseList, iqRatioList, phaseOffsList)
+    iValues = np.array(np.round(np.sum(toneDict['I'],axis=0)),dtype=np.int)
+    qValues = np.array(np.round(np.sum(toneDict['Q'],axis=0)),dtype=np.int)
+    highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
+    # 10% of the time there should be a point this many sigmas higher than average
+    expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)
+    nBitsPerSampleComponent = rchc.roachController.params['nBitsPerSamplePair']/2
+    maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
+
+    suggestedDacAtten = 20*np.log10(maxAmp*fullScaleFraction/float(highestVal))
+    suggestedDacAtten = np.floor(4*suggestedDacAtten)/4.0
+    amplitudeList *= 10**(suggestedDacAtten/20.0)
+
+    # Call it one more time to test that the range is correct
+    toneDict = rchc.roachController.generateTones(dacFreqList, nSamples, sampleRate,
+                                                  amplitudeList, phaseList, iqRatioList, phaseOffsList)
+    # Put some diagnostic information into the return value
+    iValues = np.array(np.round(np.sum(toneDict['I'],axis=0)),dtype=np.int)
+    qValues = np.array(np.round(np.sum(toneDict['Q'],axis=0)),dtype=np.int)
+    highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
+
+    # 10% of the time there should be a point this many sigmas higher than average
+    expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)
+    nBitsPerSampleComponent = rchc.roachController.params['nBitsPerSamplePair']/2
+    toneDict['suggestedDacAtten'] = suggestedDacAtten
+    toneDict['iValues'] = iValues
+    toneDict['qValues'] = qValues
+    toneDict['highestVal'] = highestVal
+    toneDict['expectedHighestVal_sig'] = expectedHighestVal_sig
+    toneDict['maxAmp'] = maxAmp
+    
+    ## Copy what is done in the beginning of RoachConnection.defineDacLUTs()
+    adcAtten = rchc.config.getfloat(rchc.roachString,'adcatten')
+    #dacAtten = rchc.config.getfloat(rchc.roachString,'dacatten_start')
+    dacAtten = suggestedDacAtten
+    dacAtten1 = np.floor(dacAtten*2)/4.
+    dacAtten2 = np.ceil(dacAtten*2)/4.
+
+    # set the attenuations and LOFreq
+    rchc.roachController.changeAtten(1,dacAtten1)
+    rchc.roachController.changeAtten(2,dacAtten2)
+    rchc.roachController.changeAtten(3,adcAtten)
+
+    resAttenList = dacAtten - 20*np.log10(amplitudeList/maxAmp)
+    rchc.roachController.attenList = resAttenList
+    dacComb = rchc.roachController.generateDacComb(globalDacAtten=dacAtten)
+
+    toneDict['dacComb'] = dacComb
+    return toneDict
+
+
+    # Copy what is done in RoachConnection.defineRoachLUTs()
+    loFreq = int(rchc.config.getfloat(rchc.roachString,'lo_freq'))
+    rchc.roachController.setLOFreq(loFreq)
+    rchc.roachController.generateFftChanSelection()
+    ddsTones = rchc.roachController.generateDdsTones()
+    print "clTools.findResonancesSetup defineRoachLUTs:  call loadChanSelection"
+    rchc.roachController.loadChanSelection()
+    print "clTools.findResonancesSetup defineRoachLUTs:  call loadDdsLUT"
+    rchc.roachController.loadDdsLUT()
+
+
+
+
