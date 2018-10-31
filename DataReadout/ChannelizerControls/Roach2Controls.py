@@ -984,7 +984,6 @@ class Roach2Controls:
         if iqPhaseOffsList is None:
             if hasattr(self, 'iqPhaseOffsList'):
                 iqPhaseOffsList = self.iqPhaseOffsList
-
         toneDict = self.generateTones(dacFreqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
         self.dacQuantizedFreqList = toneDict['quantizedFreqList']
         self.dacPhaseList = toneDict['phaseList']
@@ -1008,7 +1007,7 @@ class Roach2Controls:
             #print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
             #print '\tDac Q vals: '+str(qValues)
             #print '\tDac I vals: '+str(iValues)
-            
+
         if highestVal > expectedHighestVal_sig*np.max((np.std(iValues),np.std(qValues))):
             warnings.warn("The freq comb's relative phases may have added up sub-optimally. You should calculate new random phases")
         if highestVal > maxAmp:
@@ -1063,6 +1062,11 @@ class Roach2Controls:
         
         return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList}
         
+    def getMaxAmp(self):
+        # Calculate relative amplitudes for DAC LUT
+        nBitsPerSampleComponent = self.params['nBitsPerSamplePair']/2
+        maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
+        return maxAmp
     
     def generateTones(self, freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList=None, iqPhaseOffsList=None):
         """
@@ -1086,6 +1090,7 @@ class Roach2Controls:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
             #phaseList = np.random.uniform(0,2.*np.pi,len(freqList))
+            # freqList,deltaSeed generate deterministic random numbers
             phaseList = randomPhases.getRandomPhases(freqList, deltaSeed = 0)['phases']
         if iqRatioList is None:
             iqRatioList = np.ones(len(freqList))
