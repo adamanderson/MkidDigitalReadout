@@ -915,24 +915,44 @@ class Roach2Controls:
         self.loadDelayLut(delayLut3)            
     
     def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, iqRatioList=None, iqPhaseOffsList=None):
-        """
-        Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
+        """Creates DAC frequency comb by adding many complex frequencies
+        together with specified amplitudes and phases.
         
-        The resAttenList holds the absolute attenuation for each resonantor signal coming out of the DAC. Zero attenuation means that the tone amplitude is set to the full dynamic range of the DAC and the DAC attenuator(s) are set to 0. Thus, all values in resAttenList must be larger than globalDacAtten. If you decrease the globalDacAtten, the amplitude in the DAC LUT decreases so that the total attenuation of the signal is the same. 
+        The resAttenList holds the absolute attenuation for each
+        resonantor signal coming out of the DAC. Zero attenuation
+        means that the tone amplitude is set to the full dynamic range
+        of the DAC and the DAC attenuator(s) are set to 0. Thus, all
+        values in resAttenList must be larger than globalDacAtten. If
+        you decrease the globalDacAtten, the amplitude in the DAC LUT
+        decreases so that the total attenuation of the signal is the
+        same.
         
-        Note: Usually the attenuation values are integer dB values but technically the DAC attenuators can be set to every 1/4 dB and the amplitude in the DAC LUT can have arbitrary attenuation (quantized by number of bits).
+        Note: Usually the attenuation values are integer dB values but
+        technically the DAC attenuators can be set to every 1/4 dB and
+        the amplitude in the DAC LUT can have arbitrary attenuation
+        (quantized by number of bits).
         
         INPUTS:
-            freqList - list of all resonator frequencies. If None, use self.freqList
-            resAttenList - list of absolute attenuation values (dB) for each resonator. If None, use 20's
-            globalDacAtten - global attenuation for entire DAC. Sum of the two DAC attenuaters on IF board
-            dacPhaseList - list of phases for each complex signal. If None, generates random phases. Old phaseList is under self.dacPhaseList
+
+            freqList - list of all resonator frequencies. If None, use
+            self.freqList
+
+            resAttenList - list of absolute attenuation values (dB)
+            for each resonator. If None, use 20's
+
+            globalDacAtten - global attenuation for entire DAC. Sum of
+            the two DAC attenuaters on IF board
+
+            dacPhaseList - list of phases for each complex signal. If
+            None, generates random phases. Old phaseList is under
+            self.dacPhaseList
             
         OUTPUTS:
             dictionary with keywords
             I - I(t) values for frequency comb [signed 32-bit integers]
             Q - Q(t)
-            quantizedFreqList - list of frequencies after digitial quantiziation
+            quantizedFreqList - list of frequencies after digital quantization
+
         """
         # Interpret Inputs
         if freqList is None:
@@ -966,7 +986,9 @@ class Roach2Controls:
         nBitsPerSampleComponent = self.params['nBitsPerSamplePair']/2
         maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
         amplitudeList = maxAmp*10**(-(resAttenList - globalDacAtten)/20.)
-        
+        print "In Roach2Controls.py:  globalDacAtten=",globalDacAtten
+        print "in Roach2Controls.py:  resAttenList=",resAttenList
+        print "in Roach2Controls.py:  amplitudeList=",amplitudeList
         # Calculate nSamples and sampleRate
         nSamples = self.params['nDacSamplesPerCycle']*self.params['nLutRowsToUse']
         sampleRate = self.params['dacSampleRate']
@@ -1086,6 +1108,12 @@ class Roach2Controls:
             quantizedFreqList - list of frequencies after digitial quantiziation
             phaseList - list of phases for each frequency
         """
+        print "  begin Roach2Controls.generateTones"
+        print "       freqList =",freqList
+        print "       nSamples =",nSamples
+        print "     sampleRate =",sampleRate
+        print "  amplitudeList =",amplitudeList
+        print "      phaseList =",phaseList
         if amplitudeList is None:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
