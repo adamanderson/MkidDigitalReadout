@@ -447,63 +447,58 @@ def findResonancesSetup(rchc, fMin = 4.3e9, fMax = 4.5e9, nf = 10, fullScaleFrac
 
 
 def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
-    print "begin with freqListIn =",freqListIn
     retval = {}
     retval['tBegin'] = datetime.datetime.now()
 
     # mimic what is done in rchc.loadFreq()
     resIDs = np.arange(len(freqListIn), dtype=np.float)
     freqs = np.array(freqListIn)
-    attens = 20.0*np.ones(len(freqs))
+    resAttenList = np.zeros(len(freqs))
     phaseOffsList = np.zeros(len(freqs))
     iqRatioList = np.ones(len(freqs))
     rchc.roachController.generateResonatorChannels(freqs)
-    rchc.roachController.attenList = attens
     rchc.roachController.resIDs = resIDs
     rchc.roachController.phaseOffsList = phaseOffsList
     rchc.roachController.iqRatioList = iqRatioList
 
-    # Test run on Roach2Controls.generateTones
+    # Test run on Roach2Controls.generateTones to calculate attenuations to use full scale
+    nBitsPerSampleComponent = rchc.roachController.params['nBitsPerSamplePair']/2
+    maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
     rchc.roachController.freqList = freqListIn
-    rchc.roachController.resAttenList = 20*np.ones(len(freqListIn))
     # do not set phaseList so random phases will be generated
     rchc.iqRatioList = np.ones(len(freqListIn))
     rchc.iqPhaseOffsList = np.zeros(len(freqListIn))
     loFreq = int(rchc.config.getfloat(rchc.roachString,'lo_freq'))
     rchc.roachController.setLOFreq(loFreq)
-
-    rchc.roachController.verbose = True
-    globalDacAtten = int(rchc.config.getfloat(rchc.roachString,'dacatten_start'))
-    dacComb = rchc.roachController.generateDacComb(globalDacAtten = globalDacAtten)
+    rchc.roachController.verbose = False # True to get some info from generateDacComb
+    globalDacAtten = -20*np.log10(len(freqs))-3
+    dacComb = rchc.roachController.generateDacComb(
+        globalDacAtten = globalDacAtten,
+        resAttenList = resAttenList)
+    highestValue = max(np.abs(dacComb['I']).max(),np.abs(dacComb['Q']).max())
+    gain = float(fullScaleFraction)*maxAmp/highestValue
+    gainDb = 20*np.log10(gain)
+    resAttenList -= gainDb
+    dacComb = rchc.roachController.generateDacComb(
+        globalDacAtten = globalDacAtten,
+        resAttenList = resAttenList)
+    highestValue = max(np.abs(dacComb['I']).max(),np.abs(dacComb['Q']).max())
     rchc.roachController.verbose = False
-    
 
-    
     # mimic what is done in rchc.defineRoachLUTs()
-    print "============================================= rchc.defineRoachLUTs()"
     rchc.roachController.generateFftChanSelection()
     ddsTones = rchc.roachController.generateDdsTones()
-    with open("ddsTones.pkl", 'wb') as handle:
-        pickle.dump(ddsTones, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print "from clTools: RoachConnection.defineRoachLUTs:  call loadChanSelection"
     rchc.roachController.loadChanSelection()
     print "from clToosl: RoachConnection.defineRoachLUTs:  call loadDdsLUT"
     rchc.roachController.loadDdsLUT()
 
 
-    # mimic what is done in rchc.defineDacLUTs()
-    print "============================================= rchc.defineDacLUTs()"
     adcAtten = rchc.config.getfloat(rchc.roachString,'adcatten')
-    dacAtten = rchc.config.getfloat(rchc.roachString,'dacatten_start')
-    dacAtten1 = np.floor(dacAtten*2)/4.
-    dacAtten2 = np.ceil(dacAtten*2)/4.
-
-    dacComb = rchc.roachController.generateDacComb(globalDacAtten=dacAtten)
-    with open("dacComb.pkl", 'wb') as handle:
-        pickle.dump(dacComb, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print "Initializing ADC/DAC board communication"
     rchc.roachController.initializeV7UART()
     print "Setting Attenuators"
+    dacAtten1 = dacAtten2 = 0
     rchc.roachController.changeAtten(1,dacAtten1)
     rchc.roachController.changeAtten(2,dacAtten2)
     rchc.roachController.changeAtten(3,adcAtten)
