@@ -986,9 +986,6 @@ class Roach2Controls:
         nBitsPerSampleComponent = self.params['nBitsPerSamplePair']/2
         maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
         amplitudeList = maxAmp*10**(-(resAttenList - globalDacAtten)/20.)
-        print "In Roach2Controls.py:  globalDacAtten=",globalDacAtten
-        print "in Roach2Controls.py:  resAttenList=",resAttenList
-        print "in Roach2Controls.py:  amplitudeList=",amplitudeList
         # Calculate nSamples and sampleRate
         nSamples = self.params['nDacSamplesPerCycle']*self.params['nLutRowsToUse']
         sampleRate = self.params['dacSampleRate']
@@ -1108,12 +1105,6 @@ class Roach2Controls:
             quantizedFreqList - list of frequencies after digitial quantiziation
             phaseList - list of phases for each frequency
         """
-        print "  begin Roach2Controls.generateTones"
-        print "       freqList =",freqList
-        print "       nSamples =",nSamples
-        print "     sampleRate =",sampleRate
-        print "  amplitudeList =",amplitudeList
-        print "      phaseList =",phaseList
         if amplitudeList is None:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
