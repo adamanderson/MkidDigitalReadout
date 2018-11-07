@@ -6,6 +6,8 @@ All communication with the roach board is via functions defined in clTools.
 '''
 import clTools
 reload(clTools)
+import FindResonancesWindow
+reload(FindResonancesWindow)
 import IQPlotWindow
 reload(IQPlotWindow)
 import PhasePlotWindow
@@ -28,8 +30,15 @@ c.TerminalIPythonApp.gui = 'qt'
 to your ipython configuration file, which is probably 
 ~/.python/profile_default/ipython_config.py 
 
-Changing the confuration file usually works.  When it does not, use the --gui=qt switch
+Changing the configuration file usually works.  When it does not, use the --gui=qt switch
     """
+    
+def findResonances(rchc):
+    reload(FindResonancesWindow)
+    findResonancesWindow = FindResonancesWindow.FindResonancesWindow(rchc)
+    findResonancesWindow.show()
+    return findResonancesWindow
+
 def plotIQ(rchc):
     reload(IQPlotWindow)
     iqPlotWindow = IQPlotWindow.IQPlotWindow(rchc)
