@@ -303,18 +303,18 @@ def tail(filepath):
     """
     Utility function to read the last line of a file
     """
-        with open(filepath, "rb") as f:
-            first = f.readline()      # Read the first line.
-            f.seek(-2, 2)             # Jump to the second last byte.
-            while f.read(1) != b"\n": # Until EOL is found...
-                try:
-                    f.seek(-2, 1)     # ...jump back the read byte plus one more.
-                except IOError:
-                    f.seek(-1, 1)
-                    if f.tell() == 0:
-                        break
-            last = f.readline()       # Read last line.
-        return last
+    with open(filepath, "rb") as f:
+        first = f.readline()      # Read the first line.
+        f.seek(-2, 2)             # Jump to the second last byte.
+        while f.read(1) != b"\n": # Until EOL is found...
+            try:
+                f.seek(-2, 1)     # ...jump back the read byte plus one more.
+            except IOError:
+                f.seek(-1, 1)
+                if f.tell() == 0:
+                    break
+        last = f.readline()       # Read last line.
+    return last
 
 def getDewarTemperature(cryoBossDir="/mnt/ppd-115696/log"):
     """
