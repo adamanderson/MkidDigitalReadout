@@ -142,7 +142,7 @@
       <item>
        <widget class="QProgressBar" name="sweepProgressBar">
         <property name="value">
-         <number>24</number>
+         <number>0</number>
         </property>
        </widget>
       </item>
@@ -177,9 +177,130 @@
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="loopLabel">
+       <widget class="QLabel" name="fMinLabel">
         <property name="text">
-         <string>loopLabel?</string>
+         <string>fMin(GHz)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="fMin">
+        <property name="minimum">
+         <double>4.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>8.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="fMaxLabel">
+        <property name="text">
+         <string>fMax (GHz)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="fMax">
+        <property name="minimum">
+         <double>4.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>8.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+        <property name="value">
+         <double>8.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="nTonesLabel">
+        <property name="text">
+         <string>nTones</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="nTones">
+        <item>
+         <property name="text">
+          <string>1024</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>512</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>256</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>128</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>64</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>32</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>16</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>8</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>4</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>2</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>New Item</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="generateTonesState">
+        <property name="text">
+         <string>generateTonesState?</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QProgressBar" name="toneGenerationProgressBar">
+        <property name="value">
+         <number>100</number>
         </property>
        </widget>
       </item>

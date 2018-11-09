@@ -11,6 +11,7 @@ import LoopFitter
 reload(LoopFitter)
 
 dqToWorker = deque()
+dqToToneGenerator = deque()
 
 import pyqtgraph as pg
 pg.setConfigOption('background', 'w')
@@ -18,6 +19,7 @@ pg.setConfigOption('foreground', 'k')
 
 class FindResonancesWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
+    signalToToneGenerator = pyqtSignal(str)
     def __init__(self, rchc):
         super(FindResonancesWindow,self).__init__()
         self.stopping = False
@@ -26,6 +28,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         thisDir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(thisDir,'FindResonancesWidget.ui'), self)
 
+        self.setWindowTitle('FindResonances')
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
 
@@ -37,10 +40,19 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.sweepProgressBar.setMaximum(100)
         self.sweepProgressBar.setValue(100)
         self.nSweepStep = 0
-        self.setWindowTitle('FindResonances')
+
+        self.generateTonesState.clicked.connect(self.generateTones)
+        self.generateTonesState.setStyleSheet(ssColor("lightGreen"))
+        self.generateTonesState.setText("Ready to Generate Tones")
+        
         self.worker = Worker(self)
         self.worker.signalFromWorker.connect(self.signalFromWorker)
         self.worker.start()
+
+        self.toneGenerator = ToneGenerator(self)
+        self.toneGenerator.signalFromToneGenerator.connect(self.signalFromToneGenerator)
+        self.toneGenerator.start()
+
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(200)
@@ -95,6 +107,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         if not self.stopping:
             self.stopping = True
             self.signalToWorker.emit("PleaseStop")
+            self.signalToToneGenerator.emit("PleaseStop")
             self.timer.stop()
             self.close()
 
@@ -109,7 +122,18 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.sweepProgressBar.setValue(0)
         dqToWorker.append("PleaseDoASweep")
 
-
+    def generateTones(self):
+        self.tsToneGeneration = datetime.datetime.now()
+        self.generatingTones = True
+        fMin = self.fMin.value()
+        fMax = self.fMax.value()
+        nTones = int(self.nTones.currentText())
+        gtMessage = {"fMin":fMin, "fMax":fMax, "nTones":nTones}
+        self.generateTonesState.setText("Generating Tones")
+        self.generateTonesState.setStyleSheet(ssColor("lightPink"))
+        self.tsGenerateTones = datetime.datetime.now()
+        dqToToneGenerator.append(gtMessage)
+        
     def iFreqChanged(self, index):
         self.iFreqIndex = index
         self.iFreqResID = self.rchc.roachController.resIDs[index]
@@ -125,6 +149,13 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")
         self.nSweepStep = 0
+
+    def signalFromToneGenerator(self, data):
+        print "FindResonancesWindow.signalFromToneGenerator:  data=",data
+        self.generatingTones = False
+        self.generateTonesState.setStyleSheet(ssColor("lightGreen"))
+        self.generateTonesState.setText("Ready to Generate Tones")
+        self.toneGenerationProgressBar.setValue(100)
         
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
@@ -213,6 +244,12 @@ class FindResonancesWindow(QtGui.QMainWindow):
             elapsedSweepTime = n - self.tsSweep
             percent = 100*elapsedSweepTime.total_seconds()/self.expectedSweepSeconds
             self.sweepProgressBar.setValue(percent)
+        # If tone generation is in progress, update toneGenerationProgressBar
+        if self.generatingTones:
+            elapsedToneTime = n - self.tsToneGeneration
+            expectedToneTime = 120 # two minutes
+            percent = 100*elapsedToneTime.total_seconds()/expectedToneTime
+            self.toneGenerationProgressBar.setValue(percent)
             
 class Worker(QThread):
     signalFromWorker = pyqtSignal(dict)
@@ -227,7 +264,7 @@ class Worker(QThread):
         if value == "PleaseStop":
             self.keepAlive = False
         else:
-            print "Worker.getSignal unknown signal: ",value
+            print "Worker.getSignal unknown signal:",value
 
     def run(self):
         while self.keepAlive:
@@ -255,7 +292,39 @@ class Worker(QThread):
         if verbose: print "ResonancePlotWindow.doASweep: call signalFromWorker.emit"
         self.signalFromWorker.emit(data)
         if verbose: print "ResonancePlotWindow.doASweep: done"
+
+class ToneGenerator(QThread):
+    signalFromToneGenerator = pyqtSignal(dict)
+    def __init__(self, parent, verbose=False):
+        QThread.__init__(self, parent)
+        self.parent = parent
+        self.verbose = verbose
+        self.keepAlive = True
+        self.parent.signalToToneGenerator.connect(self.getSignal)
+        self.parent.generatingTones = False
         
+    def getSignal(self, value):
+        if value == "PleaseStop":
+            self.keepAlive = False
+        else:
+            print "ToneGenerator.getSignal unknown signal:",value
+
+    def run(self):
+        while self.keepAlive:
+            try:
+                message = dqToToneGenerator.popleft()
+                self.generateTones(message)
+                dqToWorker.clear()
+            except IndexError:
+                time.sleep(0.2)
+
+    def generateTones(self, message):
+        self.parent.generatingTones = True
+        print "ToneGenerator.generateTones:  message=",message
+        time.sleep(10)
+        toneData = {"hello":"world"}
+        self.signalFromToneGenerator.emit(toneData)
+
 def ssColor(color):
     retval = "QWidget {background-color:"
     retval += color
