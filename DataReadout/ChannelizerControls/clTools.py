@@ -6,7 +6,8 @@ If you add a function here, "reload(iTools)" is your friend.
 Sample use from iPython:
 
 > import clTools
-> rchc = clTools.setup(100, 'chris.cfg') # rchc is a handle to a RoachConnection.
+> rchc = clTools.connect(100, 'chris.cfg') # rchc is a handle to a RoachConnection.
+> clTools.setup(rchc)
 > data = clTools.readDataTest()
 > iTools.plotIQ(rchc) # plot average IQ values as a function of time
 
@@ -15,7 +16,7 @@ and if you make changes to code in this file:
 > reload(clTools)
 
 """
-import ConfigParser, datetime, dateutil, glob, logging, os, pickle, sys, time, timeit,warnings, socket
+import ConfigParser, datetime, dateutil, glob, hashlib, logging, os, pickle, sys, time, timeit,warnings, socket
 import numpy as np
 import scipy.special
 from autoZdokCal import loadDelayCal, findCal
@@ -146,17 +147,29 @@ def loadFreq(rchc):
 
 
     
-def setup(roachNumber, configFile):
+def setup(rchc):
     """
-    for the roach number and confFile, set up the connection and load LUTs to prepare
-    for making measurements
+    load LUTs to prepare for making measurements
+
+    use "tonedef" in rchc.config to store hash of a combination of phase,atten,freq, and lo_freq
+    to save time from reloading again.
     """
 
-    rchc = connect(roachNumber, configFile)
     rchc.loadFreq()
-    rchc.defineRoachLUTs()
-    rchc.defineDacLUTs()
-    #rchc.loadFIRs() moved to init
+
+    loFreq = int(rchc.config.getfloat(rchc.roachString,'lo_freq'))
+    a = rchc.roachController.freqList
+    b = loFreq*(rchc.roachController.phaseOffsList + rchc.roachController.attenList)
+    m1 = hashlib.md5()
+    m1.update(a/b)
+    thisTonedef = m1.hexdigest()
+    if thisTonedef != getTonedef(rchc): 
+        rchc.defineRoachLUTs()
+        rchc.defineDacLUTs()
+        rchc.config.set(rchc.roachString, "tonedigest", thisTonedef)
+        #rchc.loadFIRs() moved to init
+    else:
+        print "already loaded:  tonedef =",thisTonedef
     return rchc
 
 def loadFIRs(rchc):
@@ -334,72 +347,88 @@ def getDewarTemperature(cryoBossDir="/mnt/ppd-115696/log"):
     retval['faat'] = float(lll[3])
     return retval
 
+def getTonedef(rchc):
+    try:
+        return rchc.config.get(rchc.roachString, "tonedigest",0)
+    except ConfigParser.NoOptionError:
+        return ""
+
 def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
     """
     For the set of frequencies, calculate the attenuations that will
     use fullScaleFraction of the dynamic range, and load the look up
     tables.
 
+    Use the config parameter roachString, 'tonedigest' to store a has of the input values
+    for convenience; no need to reload them
+
     """
     retval = {}
     retval['tBegin'] = datetime.datetime.now()
 
-    # mimic what is done in rchc.loadFreq()
-    resIDs = np.arange(len(freqListIn), dtype=np.float)
-    freqs = np.array(freqListIn)
-    resAttenList = np.zeros(len(freqs))
-    phaseOffsList = np.zeros(len(freqs))
-    iqRatioList = np.ones(len(freqs))
-    rchc.roachController.generateResonatorChannels(freqs)
-    rchc.roachController.resIDs = resIDs
-    rchc.roachController.phaseOffsList = phaseOffsList
-    rchc.roachController.iqRatioList = iqRatioList
-
-    # Test run on Roach2Controls.generateTones to calculate attenuations to use full scale
-    nBitsPerSampleComponent = rchc.roachController.params['nBitsPerSamplePair']/2
-    maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
-    rchc.roachController.freqList = freqListIn
-    # do not set phaseList so random phases will be generated
-    rchc.iqRatioList = np.ones(len(freqListIn))
-    rchc.iqPhaseOffsList = np.zeros(len(freqListIn))
+    m1 = hashlib.md5()
     loFreq = int(rchc.config.getfloat(rchc.roachString,'lo_freq'))
-    rchc.roachController.setLOFreq(loFreq)
-    rchc.roachController.verbose = False # True to get some info from generateDacComb
-    globalDacAtten = -20*np.log10(len(freqs))-3
-    dacComb = rchc.roachController.generateDacComb(
-        globalDacAtten = globalDacAtten,
-        resAttenList = resAttenList)
-    highestValue = max(np.abs(dacComb['I']).max(),np.abs(dacComb['Q']).max())
-    gain = float(fullScaleFraction)*maxAmp/highestValue
-    gainDb = 20*np.log10(gain)
-    resAttenList -= gainDb
-    dacComb = rchc.roachController.generateDacComb(
-        globalDacAtten = globalDacAtten,
-        resAttenList = resAttenList)
-    highestValue = max(np.abs(dacComb['I']).max(),np.abs(dacComb['Q']).max())
-    rchc.roachController.verbose = False
+    m1.update((1.0+fullScaleFraction)*freqListIn/loFreq)
+    thisTonedef = m1.hexdigest()
+    
+    if thisTonedef != getTonedef(rchc):
+        # mimic what is done in rchc.loadFreq()
+        resIDs = np.arange(len(freqListIn), dtype=np.float)
+        freqs = np.array(freqListIn)
+        resAttenList = np.zeros(len(freqs))
+        phaseOffsList = np.zeros(len(freqs))
+        iqRatioList = np.ones(len(freqs))
+        rchc.roachController.generateResonatorChannels(freqs)
+        rchc.roachController.resIDs = resIDs
+        rchc.roachController.phaseOffsList = phaseOffsList
+        rchc.roachController.iqRatioList = iqRatioList
 
-    # mimic what is done in rchc.defineRoachLUTs()
-    rchc.roachController.generateFftChanSelection()
-    ddsTones = rchc.roachController.generateDdsTones()
-    print "from clTools: RoachConnection.defineRoachLUTs:  call loadChanSelection"
-    rchc.roachController.loadChanSelection()
-    print "from clToosl: RoachConnection.defineRoachLUTs:  call loadDdsLUT"
-    rchc.roachController.loadDdsLUT()
+        # Test run on Roach2Controls.generateTones to calculate attenuations to use full scale
+        nBitsPerSampleComponent = rchc.roachController.params['nBitsPerSamplePair']/2
+        maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
+        rchc.roachController.freqList = freqListIn
+        # do not set phaseList so random phases will be generated
+        rchc.iqRatioList = np.ones(len(freqListIn))
+        rchc.iqPhaseOffsList = np.zeros(len(freqListIn))
+        loFreq = int(rchc.config.getfloat(rchc.roachString,'lo_freq'))
+        rchc.roachController.setLOFreq(loFreq)
+        rchc.roachController.verbose = False # True to get some info from generateDacComb
+        globalDacAtten = -20*np.log10(len(freqs))-3
+        dacComb = rchc.roachController.generateDacComb(
+            globalDacAtten = globalDacAtten,
+            resAttenList = resAttenList)
+        highestValue = max(np.abs(dacComb['I']).max(),np.abs(dacComb['Q']).max())
+        gain = float(fullScaleFraction)*maxAmp/highestValue
+        gainDb = 20*np.log10(gain)
+        resAttenList -= gainDb
+        dacComb = rchc.roachController.generateDacComb(
+            globalDacAtten = globalDacAtten,
+            resAttenList = resAttenList)
+        highestValue = max(np.abs(dacComb['I']).max(),np.abs(dacComb['Q']).max())
+        rchc.roachController.verbose = False
+
+        # mimic what is done in rchc.defineRoachLUTs()
+        rchc.roachController.generateFftChanSelection()
+        ddsTones = rchc.roachController.generateDdsTones()
+        print "from clTools: RoachConnection.defineRoachLUTs:  call loadChanSelection"
+        rchc.roachController.loadChanSelection()
+        print "from clToosl: RoachConnection.defineRoachLUTs:  call loadDdsLUT"
+        rchc.roachController.loadDdsLUT()
 
 
-    adcAtten = rchc.config.getfloat(rchc.roachString,'adcatten')
-    print "Initializing ADC/DAC board communication"
-    rchc.roachController.initializeV7UART()
-    print "Setting Attenuators"
-    dacAtten1 = dacAtten2 = 0
-    rchc.roachController.changeAtten(1,dacAtten1)
-    rchc.roachController.changeAtten(2,dacAtten2)
-    rchc.roachController.changeAtten(3,adcAtten)
-    print "Setting LO Freq"
-    rchc.roachController.loadLOFreq()
-    print "Loading DAC LUT"
-    rchc.roachController.loadDacLUT()
+        adcAtten = rchc.config.getfloat(rchc.roachString,'adcatten')
+        print "Initializing ADC/DAC board communication"
+        rchc.roachController.initializeV7UART()
+        print "Setting Attenuators"
+        dacAtten1 = dacAtten2 = 0
+        rchc.roachController.changeAtten(1,dacAtten1)
+        rchc.roachController.changeAtten(2,dacAtten2)
+        rchc.roachController.changeAtten(3,adcAtten)
+        print "Setting LO Freq"
+        rchc.roachController.loadLOFreq()
+        print "Loading DAC LUT"
+        rchc.roachController.loadDacLUT()
+        rchc.config.set(rchc.roachString, "tonedigest", thisTonedef)
     
     retval['tEnd'] = datetime.datetime.now()
     return retval
