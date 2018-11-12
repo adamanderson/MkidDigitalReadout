@@ -151,7 +151,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.nSweepStep = 0
 
     def signalFromToneGenerator(self, data):
-        print "FindResonancesWindow.signalFromToneGenerator:  data=",data
+        print "FindResonancesWindow.signalFromToneGenerator:  data.keys() =",data.keys()
         self.generatingTones = False
         self.generateTonesState.setStyleSheet(ssColor("lightGreen"))
         self.generateTonesState.setText("Ready to Generate Tones")
@@ -274,7 +274,9 @@ class Worker(QThread):
                 dqToWorker.clear()
             except IndexError:
                 time.sleep(0.1)
-                
+            except AttributeError:
+                # protect against race condition when shutting down
+                break
     def doASweep(self, verbose=False):
         if verbose: print "ResonancePlotWindow.doASweep: begin"
         timestamp = datetime.datetime.now()
@@ -321,8 +323,10 @@ class ToneGenerator(QThread):
     def generateTones(self, message):
         self.parent.generatingTones = True
         print "ToneGenerator.generateTones:  message=",message
-        time.sleep(10)
-        toneData = {"hello":"world"}
+        freqListIn = np.linspace(message['fMin']*1e9, message['fMax']*1e9, num=message['nTones'],
+                                 endpoint=False)
+        print freqListIn
+        toneData = clTools.setTones(self.parent.rchc, freqListIn = freqListIn)
         self.signalFromToneGenerator.emit(toneData)
 
 def ssColor(color):
