@@ -56,13 +56,9 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(200)
+
+        self.setIFreqItems()
         
-        items = []
-        for resID,resFreq,atten in zip(rchc.roachController.resIDs,
-                                 rchc.roachController.freqList,
-                                 rchc.roachController.attenList):
-            items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
-        self.iFreq.addItems(items)
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
@@ -78,6 +74,15 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.loSpan.valueChanged.connect(self.updateNStep)        
         self.updateNStep()
         self.show()
+
+    def setIFreqItems(self):
+        items = []
+        for resID,resFreq,atten in zip(self.rchc.roachController.resIDs,
+                                 self.rchc.roachController.freqList,
+                                 self.rchc.roachController.attenList):
+            items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
+        self.iFreq.clear()
+        self.iFreq.addItems(items)
 
     def getNStepFromGui(self):
         loStep = self.loStep.value()
@@ -132,6 +137,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.generateTonesState.setText("Generating Tones")
         self.generateTonesState.setStyleSheet(ssColor("lightPink"))
         self.tsGenerateTones = datetime.datetime.now()
+        self.iFreq.clear()
         dqToToneGenerator.append(gtMessage)
         
     def iFreqChanged(self, index):
@@ -156,6 +162,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.generateTonesState.setStyleSheet(ssColor("lightGreen"))
         self.generateTonesState.setText("Ready to Generate Tones")
         self.toneGenerationProgressBar.setValue(100)
+        self.setIFreqItems()
         
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
