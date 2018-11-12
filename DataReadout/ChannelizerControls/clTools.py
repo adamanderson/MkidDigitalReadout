@@ -430,5 +430,8 @@ def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
         rchc.roachController.loadDacLUT()
         rchc.config.set(rchc.roachString, "tonedigest", thisTonedef)
     
+    retval['freqList'] = rchc.roachController.freqList
+    retval['attenList'] = rchc.roachController.attenList
+    retval['phaseOffsList'] = rchc.roachController.phaseOffsList    
     retval['tEnd'] = datetime.datetime.now()
     return retval
