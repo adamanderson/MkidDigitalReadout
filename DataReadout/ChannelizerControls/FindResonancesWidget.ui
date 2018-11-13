@@ -73,33 +73,25 @@
       <item>
        <widget class="QLabel" name="label">
         <property name="text">
-         <string>LO Span (kHz)</string>
+         <string>nStep</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QDoubleSpinBox" name="loSpan">
+       <widget class="QSpinBox" name="nStep">
+        <property name="minimum">
+         <number>1</number>
+        </property>
         <property name="maximum">
-         <double>20000.000000000000000</double>
+         <number>1000</number>
+        </property>
+        <property name="value">
+         <number>10</number>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="label_2">
-        <property name="text">
-         <string>LO Step (kHz)</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QDoubleSpinBox" name="loStep">
-        <property name="maximum">
-         <double>500.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="nStep">
+       <widget class="QLabel" name="df">
         <property name="minimumSize">
          <size>
           <width>100</width>
@@ -107,7 +99,14 @@
          </size>
         </property>
         <property name="text">
-         <string>nStep?</string>
+         <string>df?</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="secPerSweep">
+        <property name="text">
+         <string>secPerSweep?</string>
         </property>
        </widget>
       </item>
