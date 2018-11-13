@@ -31,7 +31,6 @@ reload(RoachConnection)
 import WritePhaseData
 reload(WritePhaseData)
 
-
 def init(roachNumber, configFile):
     """ 
     Initialize the Roach board after powering up:
@@ -201,10 +200,13 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     LO_start = LO_freq - LO_span/2.
     LO_end = LO_freq + LO_span/2.
     if verbose: print "in clTools.performIQSweep:  call rchc.roachController.performIQSweep"
+
+
     iqData = rchc.roachController.performIQSweep(LO_start/1.e6,
                                                  LO_end/1.e6,
                                                  LO_step/1.e6,
                                                  verbose=False)
+     
     if verbose: print "in clTools.performIQSweep:  back from rchc.roachController.performIQSweep"
     iqData['LO_freq']   = LO_freq
     iqData['LO_span']   = LO_span
@@ -221,10 +223,10 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     if saveToFile is not None:
         if verbose: print "save to file"
         saveIQSweepToFile(rchc, iqData, saveToFile)
-    
+
     if doLoopFit:
         iqData['loopFits'] = []
-        freqOffset = iqData['freqOffsets']
+        freqOffset = iqData['freqOffsets'] # Is it there?
         for iFreq in range(len(iqData['freqList'])):
             ia = iqData['I'][iFreq]
             qa = iqData['Q'][iFreq]
