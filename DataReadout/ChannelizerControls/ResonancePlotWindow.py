@@ -117,7 +117,8 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.iFreqResID = self.rchc.roachController.resIDs[index]
         self.iFreqFreq  = self.rchc.roachController.freqList[index]
         self.iFreqAtten = self.rchc.roachController.attenList[index]
-
+        self.updatePlots()
+        
     def signalFromWorker(self,data):
         #handle = open('IQDataDict.json','w')
         #json_tricks.dump(data, handle)

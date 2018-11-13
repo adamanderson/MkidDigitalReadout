@@ -66,39 +66,45 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
 
-        LO_span = self.rchc.config.getfloat(rchc.roachString,"sweeplospan")
-        LO_step = self.rchc.config.getfloat(rchc.roachString,"sweeplostep")
-        self.loStep.setValue(LO_step/1e3)
-        self.loSpan.setValue(LO_span/1e3)
-        self.loStep.valueChanged.connect(self.updateNStep)
-        self.loSpan.valueChanged.connect(self.updateNStep)        
+        self.nStep.valueChanged.connect(self.updateNStep)
         self.updateNStep()
         self.show()
 
     def setIFreqItems(self):
         items = []
-        for resID,resFreq,atten in zip(self.rchc.roachController.resIDs,
-                                 self.rchc.roachController.freqList,
-                                 self.rchc.roachController.attenList):
-            items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
         self.iFreq.clear()
-        self.iFreq.addItems(items)
-
-    def getNStepFromGui(self):
-        loStep = self.loStep.value()
-        loSpan = self.loSpan.value()
-        self.rchc.config.set(self.rchc.roachString, "sweeplospan",str(loSpan*1e3))
-        self.rchc.config.set(self.rchc.roachString, "sweeplostep",str(loStep*1e3))
         try:
-            nStep = int(loSpan/loStep)
-        except ZeroDivisionError:
-            nStep = -1
+            for resID,resFreq,atten in zip(self.rchc.roachController.resIDs,
+                                     self.rchc.roachController.freqList,
+                                     self.rchc.roachController.attenList):
+                items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
+            self.iFreq.addItems(items)
+        except AttributeError: # If nothing is defined in the roachController
+            pass
+            
+    def getNStepFromGui(self):
+        nStep = self.nStep.value()
         return nStep
 
     def updateNStep(self):
-        msg = "nStep = %d"%self.getNStepFromGui()
-        self.nStep.setText(msg)
-        
+        try:
+            freqList = np.sort(self.rchc.roachController.freqList)
+        except AttributeError:
+            freqList = []
+        if len(freqList) > 1:
+            dfMax = (freqList[1:]-freqList[:-1]).max()
+        else:
+            dfMax = 1e6
+        nStep = float(self.getNStepFromGui())
+        sweeplospan = dfMax
+        sweeplostep = sweeplospan/nStep
+        self.rchc.config.set(self.rchc.roachString, "sweeplospan",str(sweeplospan))
+        self.rchc.config.set(self.rchc.roachString, "sweeplostep",str(sweeplostep))
+        msg = "df = %.1f kHz"%(sweeplostep/1000.0)
+        self.df.setText(msg)
+        sec = nStep*0.4 # Expect 0.4 seconds per sweep step
+        msg = "sec/scan = %.1f"%sec
+        self.secPerSweep.setText(msg)
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -125,6 +131,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.sweepState.setText("Sweeping %d steps"%(int(self.nSweepStep)))
         self.sweepState.setStyleSheet(ssColor("lightPink"))
         self.sweepProgressBar.setValue(0)
+                        
         dqToWorker.append("PleaseDoASweep")
 
     def generateTones(self):
@@ -142,10 +149,16 @@ class FindResonancesWindow(QtGui.QMainWindow):
         
     def iFreqChanged(self, index):
         self.iFreqIndex = index
-        self.iFreqResID = self.rchc.roachController.resIDs[index]
-        self.iFreqFreq  = self.rchc.roachController.freqList[index]
-        self.iFreqAtten = self.rchc.roachController.attenList[index]
-
+        try:
+            self.iFreqResID = self.rchc.roachController.resIDs[index]
+            self.iFreqFreq  = self.rchc.roachController.freqList[index]
+            self.iFreqAtten = self.rchc.roachController.attenList[index]
+            self.updatePlots()
+        except AttributeError:
+            self.iFreqResID = -1
+            self.iFreqFreq = -1
+            self.iFreqAtten = -1
+            
     def signalFromWorker(self,data):
         #handle = open('IQDataDict.json','w')
         #json_tricks.dump(data, handle)
@@ -276,6 +289,8 @@ class Worker(QThread):
     def run(self):
         while self.keepAlive:
             try:
+                # Don't bother checking what the acutal message is.  Then only
+                # message ever sent is "PleaseDoASweep"
                 message = dqToWorker.popleft()
                 self.doASweep()
                 dqToWorker.clear()
@@ -284,13 +299,13 @@ class Worker(QThread):
             except AttributeError:
                 # protect against race condition when shutting down
                 break
-    def doASweep(self, verbose=False):
+    def doASweep(self, verbose=True):
         if verbose: print "ResonancePlotWindow.doASweep: begin"
         timestamp = datetime.datetime.now()
         rchc = self.parent.rchc
         t0 = datetime.datetime.now()
         if verbose: print "ResonancePlotWindow.doASweep: call clTools.performIQSweep"
-        iqData = clTools.performIQSweep(self.parent.rchc)
+        iqData = clTools.performIQSweep(self.parent.rchc, doLoopFit=False, verbose=True)
         if verbose: print "ResonancePlotWindow.doASweep: call back from performIQSweep"
         t1 = datetime.datetime.now()
         dt = t1-t0
@@ -326,7 +341,9 @@ class ToneGenerator(QThread):
                 dqToWorker.clear()
             except IndexError:
                 time.sleep(0.2)
-
+            except AttributeError: # Protect against race condition when shutting down
+                time.sleep(0.1)
+                
     def generateTones(self, message):
         self.parent.generatingTones = True
         print "ToneGenerator.generateTones:  message=",message
