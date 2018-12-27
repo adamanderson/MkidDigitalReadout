@@ -68,7 +68,15 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.loSpan.valueChanged.connect(self.updateNStep)        
         self.updateNStep()
         self.show()
-
+        try:
+            recentIQData = self.rchc.recentIQData
+        except AttributeError:
+            pass
+        else:
+            # Plot the "old" recentIQData
+            self.recentIQData = recentIQData
+            self.updatePlots()
+            
     def getNStepFromGui(self):
         loStep = self.loStep.value()
         loSpan = self.loSpan.value()
@@ -117,13 +125,17 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.iFreqResID = self.rchc.roachController.resIDs[index]
         self.iFreqFreq  = self.rchc.roachController.freqList[index]
         self.iFreqAtten = self.rchc.roachController.attenList[index]
-        self.updatePlots()
+        try:
+            self.updatePlots()
+        except AttributeError:
+            pass
         
     def signalFromWorker(self,data):
         #handle = open('IQDataDict.json','w')
         #json_tricks.dump(data, handle)
         #handle.close()
         self.recentIQData = data['iqData']
+        self.rchc.recentIQData = self.recentIQData
         self.updatePlots()
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")

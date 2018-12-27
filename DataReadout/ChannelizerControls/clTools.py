@@ -178,7 +178,8 @@ def loadFIRs(rchc):
 def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     """
 
-    Returns:  iqData, a dictionary of
+    Returns:  iqData, a dictionary of IQ data and parameters defining the sweep.
+
     if doLoopFit is True:
     'loopFits' -- an array of the loopFit for each frequency.
     
@@ -219,7 +220,7 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     iqData['atten4']    = rchc.roachController.attenVal[4]
     iqData['timestamp'] = datetime.datetime.now()
     iqData['freqList']  = rchc.roachController.freqList
-    
+    iqData['dacPhaseList'] = rchc.roachController.dacPhaseList
     if saveToFile is not None:
         if verbose: print "save to file"
         saveIQSweepToFile(rchc, iqData, saveToFile)
@@ -240,6 +241,56 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     if verbose: print "in clTools.performIQSweep:  return"        
     return iqData
 
+def concatenateSweep(iqData, continuousIQ=True):
+    """
+    Repackage sweep data taken with a comb of frequencies.
+
+    Return:  dictionary, with keys "freqs", "I", and "Q", in addtion to other values 
+    copied from iqData
+    """
+    print "clTools.concatenateSweep:  continuousIQ =",continuousIQ
+    freqList = iqData['freqList']
+    lenFreqList = len(freqList)
+    deltaFreqList = freqList[1:]-freqList[:-1]
+    loStep = iqData['LO_step']
+    nStep = int(deltaFreqList.max()/loStep)
+    nOverlap = len(iqData['I'][0])-nStep
+    print "clTools.concatenateSweep:  nStep =",nStep, "     nOverlap =",nOverlap
+    for i in range(len(freqList)):
+        iData = iqData['I'][i]
+        if len(iqData['I'][i])-nStep != nOverlap:
+            tuple = (nStep,nOverlap,i,len(iqData['I'][i]))
+            msg = "nStep=%d nOverlap=%d not consistent with i=%d len(iqData['I'][i])=%d"%tuple
+            raise ValueError(msg)
+    nValues = (nStep-nOverlap)*lenFreqList
+    freqs = np.zeros(nValues)
+    iValues = np.zeros(nValues)
+    qValues = np.zeros(nValues)
+    freqOffsets = iqData['freqOffsets']
+    edges = np.zeros(len(freqList)+1)
+    for iFreq,freq in enumerate(freqList):
+        edges[iFreq] = freqList[iFreq]+freqOffsets[0]-loStep/2.0
+        iv0 = iFreq*(nStep-nOverlap)
+        iv1 = (iFreq+1)*(nStep-nOverlap)
+        freqs[iv0:iv1] = freqList[iFreq]+freqOffsets[:(nStep-nOverlap)]
+        iValues[iv0:iv1] = iqData['I'][iFreq][:(nStep-nOverlap)]
+        qValues[iv0:iv1] = iqData['Q'][iFreq][:(nStep-nOverlap)]
+    edges[-1] = freqList[-1]+freqOffsets[-1]+loStep/2.0
+    if continuousIQ:
+        if lenFreqList > 1:
+            for iFreq in range(1,lenFreqList):
+                iv0 = iFreq*nStep
+                iValues[iv0:-1] += iValues[iv0-1]-iValues[iv0]
+                qValues[iv0:-1] += qValues[iv0-1]-qValues[iv0]
+    retval = {"freqs":freqs, "edges":edges}
+    for k in iqData.keys():
+        if k=="I":
+            retval["I"] = iValues
+        elif k=="Q":
+            retval["Q"] = qValues
+        else:
+            retval[k] = iqData[k]
+    return retval
 def takeLoopData(rchc, fnPrefix):
     iFile = 0
     while True:

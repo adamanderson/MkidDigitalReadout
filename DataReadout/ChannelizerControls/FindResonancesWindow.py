@@ -9,6 +9,7 @@ import clTools
 reload(clTools)
 import LoopFitter
 reload(LoopFitter)
+print "FindResonancesWindow:  done with import and reloads"
 
 dqToWorker = deque()
 dqToToneGenerator = deque()
@@ -20,7 +21,7 @@ pg.setConfigOption('foreground', 'k')
 class FindResonancesWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
     signalToToneGenerator = pyqtSignal(str)
-    def __init__(self, rchc):
+    def __init__(self, rchc, iqLoopData=None):
         super(FindResonancesWindow,self).__init__()
         self.stopping = False
         self.iqData = None
@@ -28,6 +29,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         thisDir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(thisDir,'FindResonancesWidget.ui'), self)
 
+        self.vPen = pg.mkPen(color='r', style=QtCore.Qt.DashLine)
         self.setWindowTitle('FindResonances')
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
@@ -62,7 +64,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
-        self.recentIQData = None
+        self.recentIQData = iqLoopData
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
 
@@ -95,16 +97,22 @@ class FindResonancesWindow(QtGui.QMainWindow):
             dfMax = (freqList[1:]-freqList[:-1]).max()
         else:
             dfMax = 1e6
-        nStep = float(self.getNStepFromGui())
-        sweeplospan = dfMax
-        sweeplostep = sweeplospan/nStep
+        nStepNoOverlap = float(self.getNStepFromGui())
+        sweeplospanNoOverlap = dfMax
+        sweeplostep = sweeplospanNoOverlap/nStepNoOverlap
+        nOverlap = float(self.nOverlap.value())
+        sweeplospan = sweeplospanNoOverlap + nOverlap*sweeplostep
         self.rchc.config.set(self.rchc.roachString, "sweeplospan",str(sweeplospan))
         self.rchc.config.set(self.rchc.roachString, "sweeplostep",str(sweeplostep))
         msg = "df = %.1f kHz"%(sweeplostep/1000.0)
         self.df.setText(msg)
-        sec = nStep*0.4 # Expect 0.4 seconds per sweep step
+        sec = (nStepNoOverlap+nOverlap)*0.4 # Expect 0.4 seconds per sweep step
         msg = "sec/scan = %.1f"%sec
         self.secPerSweep.setText(msg)
+        # used to update self.sweepProgressBar
+        self.expectedSweepSeconds = sec
+        self.nSweepStepToDo = nStepNoOverlap+nOverlap
+
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -123,15 +131,13 @@ class FindResonancesWindow(QtGui.QMainWindow):
             self.close()
 
     def doSweep(self):
-        self.nSweepStep = self.getNStepFromGui()
-        self.expectedSweepSeconds = int(self.nSweepStep)*0.4 # Expect 0.4 seconds per sweep step
         self.tsSweep = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsSweep)[:-5]
         self.callIQTakeAvgTime.setText(dText)
+        self.nSweepStep = self.nSweepStepToDo # Set this to non-zero to tell the timer to keep score
         self.sweepState.setText("Sweeping %d steps"%(int(self.nSweepStep)))
         self.sweepState.setStyleSheet(ssColor("lightPink"))
-        self.sweepProgressBar.setValue(0)
-                        
+        self.sweepProgressBar.setValue(0)                        
         dqToWorker.append("PleaseDoASweep")
 
     def generateTones(self):
@@ -145,6 +151,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.generateTonesState.setStyleSheet(ssColor("lightPink"))
         self.tsGenerateTones = datetime.datetime.now()
         self.iFreq.clear()
+        print "FindResonancesWindow.generateTones:  gtMessage=",gtMessage
         dqToToneGenerator.append(gtMessage)
         
     def iFreqChanged(self, index):
@@ -168,7 +175,8 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")
         self.nSweepStep = 0
-
+        self.rchc.dataFromWorker = data
+        
     def signalFromToneGenerator(self, data):
         print "FindResonancesWindow.signalFromToneGenerator:  data.keys() =",data.keys()
         self.generatingTones = False
@@ -185,30 +193,38 @@ class FindResonancesWindow(QtGui.QMainWindow):
         # self.recentIQData is a dictionary of:  I and Q, where I and Q are 2d
         # I[iFreq][iPt] - iFreq is the frequency
 
-        # Here is documentation of options to the "plot" command
-        # http://pyqtgraph.org/documentation/_modules/pyqtgraph/graphicsItems/PlotDataItem.html#PlotDataItem
+        # repackage this with cltools.concatenateSweep for I, Q, and freqs
+
         if self.recentIQData is not None:
             self.graphicsLayoutWidget.clear()
-            iList = self.recentIQData['I'][self.iFreqIndex]
-            qList = self.recentIQData['Q'][self.iFreqIndex]
-            f0 = self.recentIQData['freqList'][self.iFreqIndex]
-            freqOffsets = self.recentIQData['freqOffsets']
-            if self.recentIQData.has_key("loopFits"):
+            print "updatePlots: call concatenate with continuousIQ=False"
+            catIQData = clTools.concatenateSweep(self.recentIQData, continuousIQ=False)
+            print "updatePlots: done concatenate"
+            iList = catIQData['I']
+            qList = catIQData['Q']
+            fList = catIQData['freqs']
+            edges = catIQData['edges']
+            if catIQData.has_key("loopFits"):
                 # fvap is a tuple of (interpolated frequency, iqVelocity, amplitude, phase) numpy arrays
-                fFit = self.recentIQData['loopFits'][self.iFreqIndex]['fFit']
-                iFit = self.recentIQData['loopFits'][self.iFreqIndex]['iFit']
-                qFit = self.recentIQData['loopFits'][self.iFreqIndex]['qFit']
+                fFit = catIQData['loopFits'][self.iFreqIndex]['fFit']
+                iFit = catIQData['loopFits'][self.iFreqIndex]['iFit']
+                qFit = catIQData['loopFits'][self.iFreqIndex]['qFit']
                 fvap = LoopFitter.getFVAP(fFit, iFit, qFit)
             if self.wtp == "IQ":
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
-                self.topPlot.plot(freqOffsets, iList, symbol='o', symbolPen='k', pen='k')
+                #for edge in edges:
+                #    ilt = pg.InfiniteLine(edge, angle=90, movable=False, pen=self.vPen) 
+                #    self.topPlot.addItem(ilt)
+                #    ilb = pg.InfiniteLine(edge, angle=90, movable=False, pen=self.vPen) 
+                #    self.bottomPlot.addItem(ilb)
+                self.topPlot.plot(fList, iList, symbol='o', symbolPen='k', pen='k')
                 self.topPlot.setLabel('left','I', 'ADUs')
-                self.topPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                self.bottomPlot.plot(freqOffsets, qList, symbol='o', symbolPen='k', pen='k')
+                self.topPlot.setLabel('bottom', 'Frequency', 'Hz')
+                self.bottomPlot.plot(fList, qList, symbol='o', symbolPen='k', pen='k')
                 self.bottomPlot.setLabel('left','Q','ADUs')
                 self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                if self.recentIQData.has_key("loopFits"):
+                if catIQData.has_key("loopFits"):
                     self.leftPlot.plot(iFit, qFit, pen='r')
                     fFreqOffsets = fFit-f0
                     self.topPlot.plot(fFreqOffsets, iFit, pen='r')
@@ -219,13 +235,18 @@ class FindResonancesWindow(QtGui.QMainWindow):
                 angle = np.angle(iq,deg=True)
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
-                self.topPlot.plot(freqOffsets, amplitude, symbol='o', symbolPen='k', pen='k')
+                #for edge in edges:
+                #    ilt = pg.InfiniteLine(edge, angle=90, movable=False, pen=self.vPen) 
+                #    self.topPlot.addItem(ilt)
+                #    ilb = pg.InfiniteLine(edge, angle=90, movable=False, pen=self.vPen) 
+                #    self.bottomPlot.addItem(ilb)
+                self.topPlot.plot(fList, amplitude, symbol='o', symbolPen='k', pen='k')
                 self.topPlot.setLabel('left','amplitude', 'ADUs')
-                self.topPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                self.bottomPlot.plot(freqOffsets, angle, symbol='o', symbolPen='k', pen='k')
+                self.topPlot.setLabel('bottom', 'Frequency', 'Hz')
+                self.bottomPlot.plot(fList, angle, symbol='o', symbolPen='k', pen='k')
                 self.bottomPlot.setLabel('left','phase', 'degrees')
-                self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                if self.recentIQData.has_key("loopFits"):
+                self.bottomPlot.setLabel('bottom', 'Frequency', 'Hz')
+                if catIQData.has_key("loopFits"):
                     self.leftPlot.plot(iFit, qFit, pen='r')
                     fFreqOffsets = fFit-f0
                     self.topPlot.plot(fFreqOffsets, fvap[2], pen='r')
@@ -237,22 +258,25 @@ class FindResonancesWindow(QtGui.QMainWindow):
                 self.leftPlot.setLabel('left','Q', 'ADUs')
                 self.leftPlot.setLabel('bottom','I', 'ADUs')
 
-                dfs = freqOffsets[1:]-freqOffsets[:-1]
+                dfs = fList[1:]-fList[:-1]
                 dis = iList[1:]-iList[:-1]
                 dqs = qList[1:]-qList[:-1]
                 vs = np.sqrt(dis*dis+dqs*dqs)/dfs
-                favgs = 0.5*(freqOffsets[1:]+freqOffsets[:-1])
+                favgs = 0.5*(fList[1:]+fList[:-1])
                 self.rightPlot.plot(favgs, vs, symbol='o', symbolPen='k', pen='k')
+                #for edge in edges:
+                #    ilr = pg.InfiniteLine(edge, angle=90, movable=False, pen=self.vPen) 
+                #    self.rightPlot.addItem(ilr)
                 self.rightPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
                 self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
-                if self.recentIQData.has_key("loopFits"):
+                if catIQData.has_key("loopFits"):
                     self.leftPlot.plot(iFit, qFit, pen='r')
                     fFreqOffsets = fvap[0]-f0
                     v = fvap[1]
                     self.rightPlot.plot(fFreqOffsets, v, pen='r')
             #tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
             #self.topPlot.setTitle("%4d %s %5.1f"%tup)
-                
+
     def doTimer(self):
         n = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
@@ -281,6 +305,7 @@ class Worker(QThread):
         self.parent.signalToWorker.connect(self.getSignal)
 
     def getSignal(self,value):
+        print "Worker.getSignal:  value=",value
         if value == "PleaseStop":
             self.keepAlive = False
         else:
@@ -343,13 +368,12 @@ class ToneGenerator(QThread):
                 time.sleep(0.2)
             except AttributeError: # Protect against race condition when shutting down
                 time.sleep(0.1)
-                
+        
     def generateTones(self, message):
         self.parent.generatingTones = True
         print "ToneGenerator.generateTones:  message=",message
         freqListIn = np.linspace(message['fMin']*1e9, message['fMax']*1e9, num=message['nTones'],
                                  endpoint=False)
-        print freqListIn
         toneData = clTools.setTones(self.parent.rchc, freqListIn = freqListIn)
         self.signalFromToneGenerator.emit(toneData)
 

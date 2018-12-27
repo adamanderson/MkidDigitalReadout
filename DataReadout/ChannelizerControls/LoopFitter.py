@@ -46,8 +46,10 @@ def firstGuess(fl, il, ql):
     dqa = qa[:-1]-qa[1:]
     iqv = np.sqrt(dia*dia+dqa*dqa)
     ff = 0.5*(fa[:-1]+fa[1:])
-    fc = np.average(ff, weights=iqv)
-    
+    try:
+        fc = np.average(ff, weights=iqv)
+    except ZeroDivisionError:
+        fc = np.average(ff)
     # get the STD of the resonance peak; define q = fc/std (what about that factor of 2.something?)
     fmfc = ff-fc
     fmfc2 = fmfc**2

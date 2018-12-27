@@ -33,9 +33,9 @@ to your ipython configuration file, which is probably
 Changing the configuration file usually works.  When it does not, use the --gui=qt switch
     """
     
-def findResonances(rchc):
+def findResonances(rchc, iqData=None):
     reload(FindResonancesWindow)
-    findResonancesWindow = FindResonancesWindow.FindResonancesWindow(rchc)
+    findResonancesWindow = FindResonancesWindow.FindResonancesWindow(rchc, iqData)
     findResonancesWindow.show()
     return findResonancesWindow
 
