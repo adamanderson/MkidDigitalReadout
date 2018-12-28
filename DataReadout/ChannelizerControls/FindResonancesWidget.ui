@@ -18,7 +18,7 @@
     <rect>
      <x>0</x>
      <y>530</y>
-     <width>1071</width>
+     <width>1120</width>
      <height>72</height>
     </rect>
    </property>
@@ -48,6 +48,16 @@
         </property>
         <property name="text">
          <string>callTakeIQAvgTime?</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="concatenate">
+        <property name="text">
+         <string>Concatenate</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -351,6 +361,9 @@
    </layout>
   </widget>
   <widget class="GraphicsLayoutWidget" name="graphicsLayoutWidget">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
    <property name="geometry">
     <rect>
      <x>5</x>
