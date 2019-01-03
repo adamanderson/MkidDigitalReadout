@@ -241,6 +241,17 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     if verbose: print "in clTools.performIQSweep:  return"        
     return iqData
 
+def concatenateSweepNew(iqData, continuouseIQ=True):
+    freqList = iqData['freqList']
+    lenFreqList = len(freqList)
+    deltaFreqList = freqList[1:]-freqList[:-1]
+    loStep = iqData['LO_step']
+    nStep = int(deltaFreqList.max()/loStep)
+    nOverlap = len(iqData['I'][0])-nStep
+    print "loStep =",loStep
+    retval = {}
+    return retval
+
 def concatenateSweep(iqData, continuousIQ=True):
     """
     Repackage sweep data taken with a comb of frequencies.
@@ -248,7 +259,6 @@ def concatenateSweep(iqData, continuousIQ=True):
     Return:  dictionary, with keys "freqs", "I", and "Q", in addtion to other values 
     copied from iqData
     """
-    print "clTools.concatenateSweep:  continuousIQ =",continuousIQ
     freqList = iqData['freqList']
     lenFreqList = len(freqList)
     deltaFreqList = freqList[1:]-freqList[:-1]
