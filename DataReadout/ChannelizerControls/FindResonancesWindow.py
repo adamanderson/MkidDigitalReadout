@@ -390,7 +390,7 @@ class ToneGenerator(QThread):
             except IndexError:
                 time.sleep(0.2)
             except AttributeError: # Protect against race condition when shutting down
-                time.sleep(0.1)
+                pass
         
     def generateTones(self, message):
         self.parent.generatingTones = True
