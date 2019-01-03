@@ -1,6 +1,7 @@
+
 import datetime, time, os, json_tricks, pickle
 from PyQt4 import QtGui, uic, QtCore
-from PyQt4.QtCore import QThread, pyqtSignal, QTimer
+from PyQt4.QtCore import QThread, pyqtSignal, QTimer, QRectF, QPointF
 import numpy as np
 from collections import deque
 import H5IO
@@ -9,7 +10,6 @@ import clTools
 reload(clTools)
 import LoopFitter
 reload(LoopFitter)
-print "FindResonancesWindow:  done with import and reloads"
 
 dqToWorker = deque()
 dqToToneGenerator = deque()
@@ -71,6 +71,8 @@ class FindResonancesWindow(QtGui.QMainWindow):
 
         self.nStep.valueChanged.connect(self.updateNStep)
         self.updateNStep()
+
+        self.graphicsLayoutWidget.scene().sigMouseMoved.connect(self.mouseMoved)
         self.show()
 
         try:
@@ -122,7 +124,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         # used to update self.sweepProgressBar
         self.expectedSweepSeconds = sec
         self.nSweepStepToDo = nStepNoOverlap+nOverlap
-
+        print "done with updateNStep:  nSetpNoOverlap,nOverlap=",nStepNoOverlap,nOverlap
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -135,8 +137,8 @@ class FindResonancesWindow(QtGui.QMainWindow):
         """
         if not self.stopping:
             self.stopping = True
-            self.signalToWorker.emit("PleaseStop")
-            self.signalToToneGenerator.emit("PleaseStop")
+            self.signalToWorker.emit("StopSign")
+            self.signalToToneGenerator.emit("StopSign")
             self.timer.stop()
             self.close()
 
@@ -199,6 +201,21 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.updatePlots()
 
+    def mouseMoved(self, event):
+        for i,item in enumerate(self.graphicsLayoutWidget.items()):
+            if isinstance(item, pg.graphicsItems.ViewBox.ViewBox):
+                sbr = item.sceneBoundingRect()
+                tr = item.state['targetRange']
+                qr = QRectF(QPointF(tr[0][0],tr[1][0]),QPointF(tr[0][1],tr[1][1]))
+                mousePoint = item.mapSceneToView(event)
+                contains = qr.contains(mousePoint)
+                p = item.parentItem()
+                a = p.getAxis('top')
+                if contains:
+                    setCursorLocationText(a, (mousePoint.x(), mousePoint.y()))
+                else:
+                    setCursorLocationText(a, None)
+                    
     def updatePlots(self):
         # self.recentIQData is a dictionary of:  I and Q, where I and Q are 2d
         # I[iFreq][iPt] - iFreq is the frequency
@@ -207,18 +224,28 @@ class FindResonancesWindow(QtGui.QMainWindow):
         print "FindResonancesWindow.updatePlots"
         concatenate = self.concatenate.isChecked()
         print "FindResonancesWindow.updatePlots concatenate=",concatenate
+        self.rchc.frw = self
         if self.recentIQData is not None:
             self.graphicsLayoutWidget.clear()
 
             if self.wtp == "IQ":
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
+                setCursorLocationText(self.topPlot.getAxis('top'),None)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
+                setCursorLocationText(self.bottomPlot.getAxis('top'),None)
+                self.topPlot.setXLink(self.bottomPlot)
+                #self.topProxy = pg.SignalProxy(self.topPlot.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)
             elif self.wtp == "MagPhase":
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
+                setCursorLocationText(self.topPlot.getAxis('top'),None)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
+                setCursorLocationText(self.bottomPlot.getAxis('top'),None)
+                self.topPlot.setXLink(self.bottomPlot)
             elif self.wtp == "LoopVelocity":
                 self.leftPlot =    self.graphicsLayoutWidget.addPlot(0,0)
+                setCursorLocationText(self.leftPlot.getAxis('top'),None)
                 self.rightPlot = self.graphicsLayoutWidget.addPlot(0,1)
+                setCursorLocationText(self.rightPlot.getAxis('top'),None)
                 
             if concatenate:
                 print "updatePlots: call concatenate with continuousIQ=False"
@@ -226,32 +253,39 @@ class FindResonancesWindow(QtGui.QMainWindow):
                 iLists = [catIQData['I']]
                 qLists = [catIQData['Q']]
                 fLists = [catIQData['freqs']]
+                redIndex = -1
             else:
                 iLists = self.recentIQData['I']
                 qLists = self.recentIQData['Q']
                 fLists = []
                 for f in self.recentIQData['freqList']:
                     fLists.append(f+self.recentIQData['freqOffsets'])
-            for iList,qList,fList in zip(iLists,qLists,fLists):
+                redIndex = self.iFreq.currentIndex()
+            print "FindResonanceWindow.updatePlots begin:  len(iLists) =",len(iLists)
+            for index,iList,qList,fList in zip(range(len(iLists)),iLists,qLists,fLists):
+                if index==redIndex:
+                    pc = 'r'
+                else:
+                    pc = 'k'
                 if self.wtp == "IQ":
-                    self.topPlot.plot(fList, iList, symbol='o', symbolPen='k', pen='k')
+                    self.topPlot.plot(fList, iList, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.topPlot.setLabel('left','I', 'ADUs')
                     self.topPlot.setLabel('bottom', 'Frequency', 'Hz')
-                    self.bottomPlot.plot(fList, qList, symbol='o', symbolPen='k', pen='k')
+                    self.bottomPlot.plot(fList, qList, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.bottomPlot.setLabel('left','Q','ADUs')
                     self.bottomPlot.setLabel('bottom', 'Frequency', 'Hz')
                 elif self.wtp == "MagPhase":
                     iq = np.array(iList) + 1j*np.array(qList)
                     amplitude = np.absolute(iq)
                     angle = np.angle(iq,deg=True)
-                    self.topPlot.plot(fList, amplitude, symbol='o', symbolPen='k', pen='k')
+                    self.topPlot.plot(fList, amplitude, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.topPlot.setLabel('left','amplitude', 'ADUs')
                     self.topPlot.setLabel('bottom', 'Frequency', 'Hz')
-                    self.bottomPlot.plot(fList, angle, symbol='o', symbolPen='k', pen='k')
+                    self.bottomPlot.plot(fList, angle, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.bottomPlot.setLabel('left','phase', 'degrees')
                     self.bottomPlot.setLabel('bottom', 'Frequency', 'Hz')
                 elif self.wtp == "LoopVelocity":
-                    self.leftPlot.plot(iList, qList, symbol='o', symbolPen='k', pen='k')
+                    self.leftPlot.plot(iList, qList, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.leftPlot.setLabel('left','Q', 'ADUs')
                     self.leftPlot.setLabel('bottom','I', 'ADUs')
 
@@ -260,11 +294,10 @@ class FindResonancesWindow(QtGui.QMainWindow):
                     dqs = qList[1:]-qList[:-1]
                     vs = np.sqrt(dis*dis+dqs*dqs)/dfs
                     favgs = 0.5*(fList[1:]+fList[:-1])
-                    self.rightPlot.plot(favgs, vs, symbol='o', symbolPen='k', pen='k')
+                    self.rightPlot.plot(favgs, vs, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.rightPlot.setLabel('bottom', 'Frequency', 'Hz')
                     self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
-            #tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
-            #self.topPlot.setTitle("%4d %s %5.1f"%tup)
+            print "FindResonanceWindow.updatePlots ended:  len(iLists) =",len(iLists)
 
     def doTimer(self):
         n = datetime.datetime.now()
@@ -295,7 +328,7 @@ class Worker(QThread):
 
     def getSignal(self,value):
         print "Worker.getSignal:  value=",value
-        if value == "PleaseStop":
+        if value == "StopSign":
             self.keepAlive = False
         else:
             print "Worker.getSignal unknown signal:",value
@@ -342,7 +375,8 @@ class ToneGenerator(QThread):
         self.parent.generatingTones = False
         
     def getSignal(self, value):
-        if value == "PleaseStop":
+        if value == "StopSign":
+            print "ToneGenerator.getSignal:  value = ",value
             self.keepAlive = False
         else:
             print "ToneGenerator.getSignal unknown signal:",value
@@ -373,3 +407,15 @@ def ssColor(color):
     retval += color
     retval += "}"
     return retval
+
+def setCursorLocationText(a, xy):
+    #a = viewBox.parentItem().getAxis('top')
+    a.style['showValues'] = False
+    a.autoSIPrefix = False
+    a.show()
+    if xy is None:
+        text = ""
+    else:
+        text = "%f %f"%(xy[0],xy[1])
+    a.setLabel(text)
+    a.showLabel()

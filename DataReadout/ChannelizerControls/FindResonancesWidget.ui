@@ -63,6 +63,9 @@
       </item>
       <item>
        <widget class="QComboBox" name="whatToPlot">
+        <property name="currentIndex">
+         <number>1</number>
+        </property>
         <item>
          <property name="text">
           <string>LoopVelocity</string>
