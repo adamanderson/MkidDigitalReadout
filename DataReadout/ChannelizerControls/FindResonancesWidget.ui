@@ -18,7 +18,7 @@
     <rect>
      <x>0</x>
      <y>530</y>
-     <width>1120</width>
+     <width>1202</width>
      <height>72</height>
     </rect>
    </property>
@@ -57,8 +57,58 @@
          <string>Concatenate</string>
         </property>
         <property name="checked">
-         <bool>true</bool>
+         <bool>false</bool>
         </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="symbolSize">
+        <property name="toolTip">
+         <string>Symbol Size</string>
+        </property>
+        <property name="currentIndex">
+         <number>4</number>
+        </property>
+        <item>
+         <property name="text">
+          <string>0</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>2</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>4</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>8</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>16</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>32</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>New Item</string>
+         </property>
+        </item>
        </widget>
       </item>
       <item>

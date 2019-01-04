@@ -1,5 +1,4 @@
-
-import datetime, time, os, json_tricks, pickle
+import datetime, json_tricks, os, pickle, sys, time, warnings
 from PyQt4 import QtGui, uic, QtCore
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer, QRectF, QPointF
 import numpy as np
@@ -11,6 +10,9 @@ reload(clTools)
 import LoopFitter
 reload(LoopFitter)
 
+
+if not sys.warnoptions:
+    warnings.simplefilter("ignore")
 dqToWorker = deque()
 dqToToneGenerator = deque()
 
@@ -62,6 +64,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.setIFreqItems()
 
         self.concatenate.stateChanged.connect(self.updatePlots)
+        self.symbolSize.currentIndexChanged.connect(self.updatePlots)
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
@@ -70,6 +73,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
 
         self.nStep.valueChanged.connect(self.updateNStep)
+        self.nOverlap.valueChanged.connect(self.updateNStep)
         self.updateNStep()
 
         self.graphicsLayoutWidget.scene().sigMouseMoved.connect(self.mouseMoved)
@@ -124,7 +128,17 @@ class FindResonancesWindow(QtGui.QMainWindow):
         # used to update self.sweepProgressBar
         self.expectedSweepSeconds = sec
         self.nSweepStepToDo = nStepNoOverlap+nOverlap
-        print "done with updateNStep:  nSetpNoOverlap,nOverlap=",nStepNoOverlap,nOverlap
+        print "done with updateNStep:  nStepNoOverlap,nOverlap=",nStepNoOverlap,nOverlap
+        LO_freq = self.rchc.roachController.LOFreq
+        LO_span = self.rchc.config.getfloat(self.rchc.roachString,'sweeplospan')
+        LO_step = self.rchc.config.getfloat(self.rchc.roachString,'sweeplostep')
+        LO_start = LO_freq - LO_span/2.
+        LO_end = LO_freq + LO_span/2.
+        print "done with updateNStep:  LO_freq  =",LO_freq
+        print "done with updateNStep:  LO_span  =",LO_span
+        print "done with updateNStep:  LO_step  =",LO_step
+        print "done with updateNStep:  LO_start =",LO_start
+        print "done with updateNStep:  LO_end   =",LO_end
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -262,30 +276,31 @@ class FindResonancesWindow(QtGui.QMainWindow):
                     fLists.append(f+self.recentIQData['freqOffsets'])
                 redIndex = self.iFreq.currentIndex()
             print "FindResonanceWindow.updatePlots begin:  len(iLists) =",len(iLists)
+            symbolSize = int(self.symbolSize.currentText())
             for index,iList,qList,fList in zip(range(len(iLists)),iLists,qLists,fLists):
                 if index==redIndex:
                     pc = 'r'
                 else:
                     pc = 'k'
                 if self.wtp == "IQ":
-                    self.topPlot.plot(fList, iList, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
+                    self.topPlot.plot(fList, iList, symbol='o', symbolSize=symbolSize, symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.topPlot.setLabel('left','I', 'ADUs')
                     self.topPlot.setLabel('bottom', 'Frequency', 'Hz')
-                    self.bottomPlot.plot(fList, qList, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
+                    self.bottomPlot.plot(fList, qList, symbol='o', symbolSize=symbolSize,symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.bottomPlot.setLabel('left','Q','ADUs')
                     self.bottomPlot.setLabel('bottom', 'Frequency', 'Hz')
                 elif self.wtp == "MagPhase":
                     iq = np.array(iList) + 1j*np.array(qList)
                     amplitude = np.absolute(iq)
                     angle = np.angle(iq,deg=True)
-                    self.topPlot.plot(fList, amplitude, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
+                    self.topPlot.plot(fList, amplitude, symbol='o', symbolSize=symbolSize, symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.topPlot.setLabel('left','amplitude', 'ADUs')
                     self.topPlot.setLabel('bottom', 'Frequency', 'Hz')
-                    self.bottomPlot.plot(fList, angle, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
+                    self.bottomPlot.plot(fList, angle, symbol='o', symbolSize=symbolSize, symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.bottomPlot.setLabel('left','phase', 'degrees')
                     self.bottomPlot.setLabel('bottom', 'Frequency', 'Hz')
                 elif self.wtp == "LoopVelocity":
-                    self.leftPlot.plot(iList, qList, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
+                    self.leftPlot.plot(iList, qList, symbol='o', symbolSize=symbolSize, symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.leftPlot.setLabel('left','Q', 'ADUs')
                     self.leftPlot.setLabel('bottom','I', 'ADUs')
 
@@ -294,7 +309,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
                     dqs = qList[1:]-qList[:-1]
                     vs = np.sqrt(dis*dis+dqs*dqs)/dfs
                     favgs = 0.5*(fList[1:]+fList[:-1])
-                    self.rightPlot.plot(favgs, vs, symbol='o', symbolBrush=pc, symbolPen=pc, pen=pc)
+                    self.rightPlot.plot(favgs, vs, symbol='o', symbolSize=symbolSize, symbolBrush=pc, symbolPen=pc, pen=pc)
                     self.rightPlot.setLabel('bottom', 'Frequency', 'Hz')
                     self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
             print "FindResonanceWindow.updatePlots ended:  len(iLists) =",len(iLists)
