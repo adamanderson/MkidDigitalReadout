@@ -20,19 +20,19 @@ import pyqtgraph as pg
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
-class FindResonancesWindow(QtGui.QMainWindow):
+class MultiToneScannerWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
     signalToToneGenerator = pyqtSignal(str)
     def __init__(self, rchc, iqLoopData=None):
-        super(FindResonancesWindow,self).__init__()
+        super(MultiToneScannerWindow,self).__init__()
         self.stopping = False
         self.iqData = None
         self.rchc = rchc
         thisDir = os.path.dirname(os.path.abspath(__file__))
-        uic.loadUi(os.path.join(thisDir,'FindResonancesWidget.ui'), self)
+        uic.loadUi(os.path.join(thisDir,'MultiToneScannerWidget.ui'), self)
 
         self.vPen = pg.mkPen(color='r', style=QtCore.Qt.DashLine)
-        self.setWindowTitle('FindResonances')
+        self.setWindowTitle('MultiToneScanner')
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
 
@@ -180,7 +180,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.generateTonesState.setStyleSheet(ssColor("lightPink"))
         self.tsGenerateTones = datetime.datetime.now()
         self.iFreq.clear()
-        print "FindResonancesWindow.generateTones:  gtMessage=",gtMessage
+        print "MultiToneScannerWindow.generateTones:  gtMessage=",gtMessage
         dqToToneGenerator.append(gtMessage)
         
     def iFreqChanged(self, index):
@@ -238,9 +238,9 @@ class FindResonancesWindow(QtGui.QMainWindow):
         # I[iFreq][iPt] - iFreq is the frequency
 
         # repackage this with cltools.concatenateSweep for I, Q, and freqs
-        print "FindResonancesWindow.updatePlots"
+        print "MultiToneScannerWindow.updatePlots"
         concatenate = self.concatenate.isChecked()
-        print "FindResonancesWindow.updatePlots concatenate=",concatenate
+        print "MultiToneScannerWindow.updatePlots concatenate=",concatenate
         self.rchc.frw = self
         if self.recentIQData is not None:
             self.graphicsLayoutWidget.clear()
@@ -382,16 +382,16 @@ class Worker(QThread):
                 # protect against race condition when shutting down
                 break
     def doASweep(self, verbose=True):
-        if verbose: print "FindResonancesWindow.doASweep: begin"
+        if verbose: print "MultiToneScannerWindow.doASweep: begin"
         timestamp = datetime.datetime.now()
         rchc = self.parent.rchc
         t0 = datetime.datetime.now()
         if verbose:
-            print "FindResonancesWindow.doASweep: call clTools.performIQSweep"
+            print "MultiToneScannerWindow.doASweep: call clTools.performIQSweep"
         iqData = clTools.performIQSweep(self.parent.rchc, \
                                         doLoopFit=False, verbose=True)
         if verbose:
-            print "FindResonancesWindow.doASweep: done clTools.performIQSweep"
+            print "MultiToneScannerWindow.doASweep: done clTools.performIQSweep"
         t1 = datetime.datetime.now()
         dt = t1-t0
         data = {
@@ -399,10 +399,10 @@ class Worker(QThread):
             'iqData':iqData
         }
         if verbose:
-            print "FindResonancesWindow.doASweep: call signalFromWorker.emit"
+            print "MultiToneScannerWindow.doASweep: call signalFromWorker.emit"
         self.signalFromWorker.emit(data)
         if verbose:
-            print "FindResonancesWindow.doASweep: done"
+            print "MultiToneScannerWindow.doASweep: done"
 
 class ToneGenerator(QThread):
     signalFromToneGenerator = pyqtSignal(dict)

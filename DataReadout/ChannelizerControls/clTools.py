@@ -317,7 +317,7 @@ def saveIQSweepToFile(rchc, iqData, saveToFile):
     print "saveToFile =",saveToFile
     freqList = rchc.roachController.freqList
     attenList = rchc.roachController.attenList
-    for iFreq,f0 in enumerage(freqList):
+    for iFreq,f0 in enumerate(freqList):
         w = iqsweep.IQSweep()
         w.f0 = freqList[iFreq]
         w.span = iqData['LO_span']/1e6
@@ -495,3 +495,27 @@ def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
     retval['tonedef'] = thisTonedef
     retval['tEnd'] = datetime.datetime.now()
     return retval
+
+def showTones(rchc):
+    freqList = rchc.roachController.freqList
+    dacPhaseList = rchc.roachController.dacPhaseList
+    attenList = rchc.roachController.attenList
+    for i,freq,phase,atten in zip(range(len(freqList)),
+                                        freqList, dacPhaseList, attenList):
+        print i,freq,phase,atten
+
+def setupAndSweep(roachNumber, configFile, nSweep=1):
+    rchc = connect(roachNumber, configFile)
+    root,ext = os.path.splitext(configFile)
+    outputFileName = "iq-%s-%s.pkl"%(root,time.strftime("%Y%m%d-%H%M%S"))
+    print "ofn =",outputFileName
+    t0 = datetime.datetime.now()
+    print "begin setup with t0 = ",t0
+    setup(rchc)
+    t1 = datetime.datetime.now()
+    print "finished setup with t1 = ",t1
+    for iSweep in range(nSweep):
+        iqData = performIQSweep(rchc,  doLoopFit=False)
+        t2 = datetime.datetime.now()
+        print "finished sweep with t2 =",t2
+        pickle.dump(iqData, open(outputFileName, 'wb'))

@@ -6,6 +6,8 @@ All communication with the roach board is via functions defined in clTools.
 '''
 import clTools
 reload(clTools)
+import MultiToneScannerWindow
+reload(MultiToneScannerWindow)
 import FindResonancesWindow
 reload(FindResonancesWindow)
 import IQPlotWindow
@@ -33,9 +35,17 @@ to your ipython configuration file, which is probably
 Changing the configuration file usually works.  When it does not, use the --gui=qt switch
     """
     
+def multiToneScanner(rchc, iqData=None):
+    reload(MultiToneScannerWindow)
+    multiToneScannerWindow = MultiToneScannerWindow.\
+                           MultiToneScannerWindow(rchc, iqData)
+    multiToneScannerWindow.show()
+    return multiToneScannerWindow
+
 def findResonances(rchc, iqData=None):
     reload(FindResonancesWindow)
-    findResonancesWindow = FindResonancesWindow.FindResonancesWindow(rchc, iqData)
+    findResonancesWindow = FindResonancesWindow.\
+                           FindResonancesWindow(rchc, iqData)
     findResonancesWindow.show()
     return findResonancesWindow
 
