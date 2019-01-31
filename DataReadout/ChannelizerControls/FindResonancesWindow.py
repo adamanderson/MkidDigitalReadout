@@ -23,7 +23,7 @@ pg.setConfigOption('foreground', 'k')
 class FindResonancesWindow(QtGui.QMainWindow):
     signalToWorker = pyqtSignal(str)
     signalToToneGenerator = pyqtSignal(str)
-    def __init__(self, rchc, iqLoopData=None):
+    def __init__(self, rchc):
         super(FindResonancesWindow,self).__init__()
         self.stopping = False
         self.iqData = None
@@ -31,8 +31,9 @@ class FindResonancesWindow(QtGui.QMainWindow):
         thisDir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(thisDir,'FindResonancesWidget.ui'), self)
 
-        self.vPen = pg.mkPen(color='r', style=QtCore.Qt.DashLine)
+        self.vPen = pg.mkPen(color='k', style=QtCore.Qt.DashLine)
         self.setWindowTitle('FindResonances')
+        
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
 
@@ -45,9 +46,9 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.sweepProgressBar.setValue(100)
         self.nSweepStep = 0
 
-        self.generateTonesState.clicked.connect(self.generateTones)
-        self.generateTonesState.setStyleSheet(ssColor("lightGreen"))
-        self.generateTonesState.setText("Ready to Generate Tones")
+        self.generateToneState.clicked.connect(self.generateTone)
+        self.generateToneState.setStyleSheet(ssColor("lightGreen"))
+        self.generateToneState.setText("Ready to Generate Tone")
         
         self.worker = Worker(self)
         self.worker.signalFromWorker.connect(self.signalFromWorker)
@@ -64,22 +65,33 @@ class FindResonancesWindow(QtGui.QMainWindow):
 
         self.setIFreqItems()
 
-        self.concatenate.stateChanged.connect(self.updatePlots)
         self.symbolSize.currentIndexChanged.connect(self.updatePlots)
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
         self.iFreqChanged(0)
+        try:
+            iqLoopData = rchc.recentIQData
+            try:
+                loFreqStr = str(rchc.recentIQData['LO_freq'])
+            except:
+                loFreqStr = "?"
+            self.loFreqHz.setText(loFreqStr)
+        except AttributeError:
+            iqLoopData = None
+
         self.recentIQData = iqLoopData
+            
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
-
-        self.nStep.valueChanged.connect(self.updateNStep)
-        self.nOverlap.valueChanged.connect(self.updateNStep)
-        self.updateNStep()
+        print "init:  self.wtp =",self.wtp
+        self.loSpanHz.editingFinished.connect(self.updateStepLabel)
+        self.loStepHz.editingFinished.connect(self.updateStepLabel)
+        self.updateStepLabel()
 
         self.graphicsLayoutWidget.scene().sigMouseMoved\
                                          .connect(self.mouseMoved)
         self.previousPlotState = None
+
         self.show()
 
         try:
@@ -104,43 +116,19 @@ class FindResonancesWindow(QtGui.QMainWindow):
         except AttributeError: # If nothing is defined in the roachController
             pass
             
-    def getNStepFromGui(self):
-        nStep = self.nStep.value()
-        return nStep
-
-    def updateNStep(self):
+    def updateStepLabel(self):
+        loSpan = float(self.loSpanHz.text())
+        loStep = float(self.loStepHz.text())
         try:
-            freqList = np.sort(self.rchc.roachController.freqList)
-        except AttributeError:
-            freqList = []
-        if len(freqList) > 1:
-            dfMax = (freqList[1:]-freqList[:-1]).max()
-        else:
-            dfMax = 10e6
-        nStepNoOverlap = float(self.getNStepFromGui())
-        sweeplospanNoOverlap = dfMax
-        sweeplostep = sweeplospanNoOverlap/nStepNoOverlap
-        nOverlap = float(self.nOverlap.value())
-        sweeplospan = sweeplospanNoOverlap + nOverlap*sweeplostep
-        self.rchc.config.set(self.rchc.roachString,
-                             "sweeplospan",str(sweeplospan))
-        self.rchc.config.set(self.rchc.roachString,
-                             "sweeplostep",str(sweeplostep))
-        msg = "df = %.1f kHz"%(sweeplostep/1000.0)
-        self.df.setText(msg)
-        sec = (nStepNoOverlap+nOverlap)*0.4 # Expect 0.4 seconds per sweep step
-        msg = "sec/scan = %.1f"%sec
-        self.secPerSweep.setText(msg)
+            nStep = int(loSpan/loStep)
+        except ZeroDivisionError:
+            nStep = 0
+        sec = nStep*0.4 # Expect 0.4 seconds per sweep step
+        msg = "%d steps in %.0f seconds"%(nStep,sec)
+        self.stepLabel.setText(msg)
         # used to update self.sweepProgressBar
         self.expectedSweepSeconds = sec
-        self.nSweepStepToDo = nStepNoOverlap+nOverlap
-        LO_freq = self.rchc.roachController.LOFreq
-        LO_span = self.rchc.config\
-                           .getfloat(self.rchc.roachString,'sweeplospan')
-        LO_step = self.rchc.config\
-                           .getfloat(self.rchc.roachString,'sweeplostep')
-        LO_start = LO_freq - LO_span/2.
-        LO_end = LO_freq + LO_span/2.
+        self.nSweepStepToDo = nStep
     def closeEvent(self, event):
         """
         Called when the window is closed.  Call doStop
@@ -166,23 +154,44 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.nSweepStep = self.nSweepStepToDo 
         self.sweepState.setText("Sweeping %d steps"%(int(self.nSweepStep)))
         self.sweepState.setStyleSheet(ssColor("lightPink"))
-        self.sweepProgressBar.setValue(0)                        
+        self.sweepProgressBar.setValue(0)
+
+        # Set values in rchc.config, which is what clTools.performIQSweep uses
+        rchc = self.rchc
+        try:
+            sweeplospan = str(float(self.loSpanHz.text()))
+            sweeplostep = str(float(self.loStepHz.text()))
+            sweeplooffset = str(float(self.loOffsetHz.text()))
+        except ValueError:
+            return # one of the three values is not a good string
+        rchc.config.set(rchc.roachString,'sweeplospan', sweeplospan)
+        rchc.config.set(rchc.roachString,'sweeplostep', sweeplostep)
+        rchc.config.set(rchc.roachString,'sweeplooffset', sweeplooffset)
+        
         dqToWorker.append("PleaseDoASweep")
 
-    def generateTones(self):
+    def generateTone(self):
         self.tsToneGeneration = datetime.datetime.now()
-        self.generatingTones = True
-        fMin = self.fMin.value()
-        fMax = self.fMax.value()
-        nTones = int(self.nTones.currentText())
-        gtMessage = {"fMin":fMin, "fMax":fMax, "nTones":nTones}
-        self.generateTonesState.setText("Generating Tones")
-        self.generateTonesState.setStyleSheet(ssColor("lightPink"))
-        self.tsGenerateTones = datetime.datetime.now()
+        self.generatingTone = True
+        try:
+            loFreqHz = float(self.loFreqHz.text())
+            fToneMin = float(self.fToneMin.text())        
+            fToneMax = float(self.fToneMax.text())
+            nTone = self.nTone.value()
+        except ValueError:
+            return
+        gtMessage = {"loFreqHz":loFreqHz,
+                     "fToneMin":fToneMin,
+                     "fToneMax":fToneMax,
+                     "nTone":nTone
+        }
+        self.generateToneState.setText("Generating Tone")
+        self.generateToneState.setStyleSheet(ssColor("lightPink"))
+        self.tsGenerateTone = datetime.datetime.now()
         self.iFreq.clear()
-        print "FindResonancesWindow.generateTones:  gtMessage=",gtMessage
+        print "FindResonancesWindow.generateTone:  gtMessage=",gtMessage
         dqToToneGenerator.append(gtMessage)
-        
+
     def iFreqChanged(self, index):
         self.iFreqIndex = index
         try:
@@ -207,9 +216,9 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.nSweepStep = 0
         
     def signalFromToneGenerator(self, data):
-        self.generatingTones = False
-        self.generateTonesState.setStyleSheet(ssColor("lightGreen"))
-        self.generateTonesState.setText("Ready to Generate Tones")
+        self.generatingTone = False
+        self.generateToneState.setStyleSheet(ssColor("lightGreen"))
+        self.generateToneState.setText("Ready to Generate Tone")
         self.toneGenerationProgressBar.setValue(100)
         self.setIFreqItems()
         
@@ -237,10 +246,6 @@ class FindResonancesWindow(QtGui.QMainWindow):
         # self.recentIQData is a dictionary of:  I and Q, where I and Q are 2d
         # I[iFreq][iPt] - iFreq is the frequency
 
-        # repackage this with cltools.concatenateSweep for I, Q, and freqs
-        print "FindResonancesWindow.updatePlots"
-        concatenate = self.concatenate.isChecked()
-        print "FindResonancesWindow.updatePlots concatenate=",concatenate
         self.rchc.frw = self
         if self.recentIQData is not None:
             self.graphicsLayoutWidget.clear()
@@ -266,28 +271,16 @@ class FindResonancesWindow(QtGui.QMainWindow):
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 setCursorLocationText(self.topPlot.getAxis('top'),None)
                 
-            if concatenate:
-                print "updatePlots: call concatenate with continuousIQ=False"
-                catIQData = clTools.concatenateSweep(self.recentIQData, \
-                                                     continuousIQ=False)
-                iLists = [catIQData['I']]
-                qLists = [catIQData['Q']]
-                fLists = [catIQData['freqs']]
-                redIndex = -1
-            else:
-                iLists = self.recentIQData['I']
-                qLists = self.recentIQData['Q']
-                fLists = []
-                for f in self.recentIQData['freqList']:
-                    fLists.append(f+self.recentIQData['freqOffsets'])
-                redIndex = self.iFreq.currentIndex()
+            iLists = self.recentIQData['I']
+            qLists = self.recentIQData['Q']
+            fLists = []
+            for f in self.recentIQData['freqList']:
+                fLists.append(f+self.recentIQData['freqOffsets'])
             symbolSize = int(self.symbolSize.currentText())
+            pcs = "rgb"
             for index,iList,qList,fList in zip(range(len(iLists)),\
                                                iLists,qLists,fLists):
-                if index==redIndex:
-                    pc = 'r'
-                else:
-                    pc = 'k'
+                pc = pcs[index%3]
                 kwargs = {"symbol":'o',
                           "symbolSize":symbolSize,
                           "symbolBrush":pc,
@@ -346,8 +339,12 @@ class FindResonancesWindow(QtGui.QMainWindow):
             percent /= self.expectedSweepSeconds
             self.sweepProgressBar.setValue(percent)
         # If tone generation is in progress, update toneGenerationProgressBar
-        if self.generatingTones:
-            elapsedToneTime = n - self.tsToneGeneration
+        if self.generatingTone:
+            try:
+                elapsedToneTime = n - self.tsToneGeneration
+            except AttributeError:
+                print "in doTimer:  tsToneGeneration not set"
+                elapsedToneTime = 0
             expectedToneTime = 120 # two minutes
             percent = 100*elapsedToneTime.total_seconds()/expectedToneTime
             self.toneGenerationProgressBar.setValue(percent)
@@ -412,7 +409,7 @@ class ToneGenerator(QThread):
         self.verbose = verbose
         self.keepAlive = True
         self.parent.signalToToneGenerator.connect(self.getSignal)
-        self.parent.generatingTones = False
+        self.parent.generatingTone = False
         
     def getSignal(self, value):
         if value == "StopSign":
@@ -425,7 +422,7 @@ class ToneGenerator(QThread):
         while self.keepAlive:
             try:
                 message = dqToToneGenerator.popleft()
-                self.generateTones(message)
+                self.generateTone(message)
                 dqToWorker.clear()
             except IndexError:
                 time.sleep(0.2)
@@ -433,13 +430,21 @@ class ToneGenerator(QThread):
             except AttributeError: 
                 pass
         
-    def generateTones(self, message):
-        self.parent.generatingTones = True
-        print "ToneGenerator.generateTones:  message=",message
-        freqListIn = np.linspace(message['fMin']*1e9, \
-                                 message['fMax']*1e9, num=message['nTones'],
-                                 endpoint=False)
-        toneData = clTools.setTones(self.parent.rchc, freqListIn = freqListIn)
+    def generateTone(self, message):
+        self.parent.generatingTone = True
+        print "ToneGenerator.generateTone:  message=",message
+        loFreqHz = message['loFreqHz']
+        rchc = self.parent.rchc
+        rchc.config.set(rchc.roachString, 'lo_freq', str(loFreqHz))
+        #freqListIn = np.array([message['fToneHz']])
+        freqListIn = np.linspace(message['fToneMin'],message['fToneMax'],
+                                 message['nTone'], endpoint=False)
+        print "now call clTools.setTones with freqListIn = ",freqListIn
+        fullScaleFraction = 0.095
+        print "WARNING:  fullScalFraction hardwired to ",fullScaleFraction
+        toneData = clTools.setTones(self.parent.rchc,
+                                    freqListIn = freqListIn,
+                                    fullScaleFraction = fullScaleFraction)
         self.signalFromToneGenerator.emit(toneData)
 
 def ssColor(color):

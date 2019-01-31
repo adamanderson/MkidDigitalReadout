@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1258</width>
-    <height>608</height>
+    <width>1491</width>
+    <height>566</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,24 +17,24 @@
    <property name="geometry">
     <rect>
      <x>0</x>
-     <y>530</y>
+     <y>10</y>
      <width>1244</width>
-     <height>72</height>
+     <height>331</height>
     </rect>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <spacer name="verticalSpacer">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
+     <widget class="GraphicsLayoutWidget" name="graphicsLayoutWidget">
+      <property name="enabled">
+       <bool>true</bool>
       </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>20</width>
-        <height>40</height>
-       </size>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
       </property>
-     </spacer>
+     </widget>
     </item>
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_4">
@@ -48,16 +48,6 @@
         </property>
         <property name="text">
          <string>callTakeIQAvgTime?</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="concatenate">
-        <property name="text">
-         <string>Concatenate</string>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
         </property>
        </widget>
       </item>
@@ -139,59 +129,39 @@
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="nOverlaplabel">
-        <property name="text">
-         <string>nOverlap</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QSpinBox" name="nOverlap">
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>1000</number>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string>nStep</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QSpinBox" name="nStep">
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>1000</number>
-        </property>
-        <property name="value">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="df">
-        <property name="minimumSize">
-         <size>
-          <width>100</width>
-          <height>0</height>
-         </size>
+       <widget class="QLineEdit" name="loSpanHz">
+        <property name="toolTip">
+         <string>LO Span (Hz)</string>
         </property>
         <property name="text">
-         <string>df?</string>
+         <string>1e6</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="secPerSweep">
+       <widget class="QLineEdit" name="loStepHz">
+        <property name="toolTip">
+         <string>LO Step (Hz)</string>
+        </property>
         <property name="text">
-         <string>secPerSweep?</string>
+         <string>0.1e6</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="loOffsetHz">
+        <property name="toolTip">
+         <string>LO Offset (Hz)</string>
+        </property>
+        <property name="text">
+         <string>0</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="stepLabel">
+        <property name="text">
+         <string>TextLabel</string>
         </property>
        </widget>
       </item>
@@ -261,126 +231,52 @@
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="fMinLabel">
+       <widget class="QLineEdit" name="loFreqHz">
+        <property name="toolTip">
+         <string>LO freq (Hz)</string>
+        </property>
         <property name="text">
-         <string>fMin(GHz)</string>
+         <string>5.1e9</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QDoubleSpinBox" name="fMin">
+       <widget class="QLineEdit" name="fToneMin">
+        <property name="toolTip">
+         <string>f tone (Hz)</string>
+        </property>
+        <property name="text">
+         <string>5.7e9</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="fToneMax">
+        <property name="toolTip">
+         <string>f tone (Hz)</string>
+        </property>
+        <property name="text">
+         <string>6.0e9</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSpinBox" name="nTone">
         <property name="minimum">
-         <double>4.000000000000000</double>
+         <number>1</number>
         </property>
         <property name="maximum">
-         <double>8.000000000000000</double>
-        </property>
-        <property name="singleStep">
-         <double>0.100000000000000</double>
+         <number>1024</number>
         </property>
         <property name="value">
-         <double>5.000000000000000</double>
+         <number>1</number>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="fMaxLabel">
+       <widget class="QPushButton" name="generateToneState">
         <property name="text">
-         <string>fMax (GHz)</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QDoubleSpinBox" name="fMax">
-        <property name="minimum">
-         <double>4.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>8.000000000000000</double>
-        </property>
-        <property name="singleStep">
-         <double>0.100000000000000</double>
-        </property>
-        <property name="value">
-         <double>6.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="nTonesLabel">
-        <property name="text">
-         <string>nTones</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="nTones">
-        <item>
-         <property name="text">
-          <string>1024</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>512</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>256</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>128</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>64</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>32</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>16</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>8</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>4</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>2</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>1</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>New Item</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="generateTonesState">
-        <property name="text">
-         <string>generateTonesState?</string>
+         <string>generateToneState?</string>
         </property>
        </widget>
       </item>
@@ -421,25 +317,10 @@
     </item>
    </layout>
   </widget>
-  <widget class="GraphicsLayoutWidget" name="graphicsLayoutWidget">
-   <property name="enabled">
-    <bool>true</bool>
-   </property>
-   <property name="geometry">
-    <rect>
-     <x>5</x>
-     <y>10</y>
-     <width>1241</width>
-     <height>511</height>
-    </rect>
-   </property>
-   <property name="sizePolicy">
-    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-     <horstretch>0</horstretch>
-     <verstretch>0</verstretch>
-    </sizepolicy>
-   </property>
-  </widget>
+  <zorder>verticalLayoutWidget</zorder>
+  <zorder>verticalLayoutWidget</zorder>
+  <zorder>verticalLayoutWidget</zorder>
+  <zorder>graphicsLayoutWidget</zorder>
  </widget>
  <customwidgets>
   <customwidget>
