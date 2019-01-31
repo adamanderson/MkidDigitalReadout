@@ -491,7 +491,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             rotation - The rotation angle for each resonator before phasing the DDS LUT
         '''
         nIQPoints = 100     #arbitrary number. 100 seems fine. Could add this to config file in future
-        averageIQ = self.roachController.takeAvgIQData(nIQPoints)
+        averageIQ = self.roachController.takeAvgIQData(nIQPoints) 
         avg_I = np.average(averageIQ['I'],1) - self.centers[:,0]
         avg_Q = np.average(averageIQ['Q'],1) - self.centers[:,1]
         rotation_phases = np.arctan2(avg_Q,avg_I)
@@ -513,7 +513,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         
         self.roachController.generateDdsTones(phaseList=phaseList)
         self.roachController.loadDdsLUT()
-        
+       
         return {'IonRes':np.copy(averageIQ['I']), 'QonRes':np.copy(averageIQ['Q']), 'rotation':np.copy(rotation_phases)}
 
     def translateLoops(self):
