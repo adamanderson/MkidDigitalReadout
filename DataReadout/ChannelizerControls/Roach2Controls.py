@@ -975,7 +975,9 @@ class Roach2Controls:
         if (phaseList is not None) and len(freqList) != len(phaseList):
             raise ValueError("Need exactly one phase value for each resonant frequency!")
         if np.any(resAttenList < globalDacAtten):
-            raise ValueError("Impossible to attain desired resonator attenuations! Decrease the global DAC attenuation.")
+            resAttenListMin = resAttenList.min()
+            print "resAttenListMin =",resAttenListMin
+            raise ValueError("Impossible to attain desired resonator attenuations! Decrease the global DAC attenuation to less than %f"%resAttenListMin)
         self.attenList = resAttenList
         self.freqList = freqList
         
