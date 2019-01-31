@@ -198,9 +198,12 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     LO_span = rchc.config.getfloat(rchc.roachString,'sweeplospan')
     LO_step = rchc.config.getfloat(rchc.roachString,'sweeplostep')
     if verbose: print "in clTools.performIQSweep:  LO_span=",LO_span, "LO_step=",LO_step, LO_span/LO_step
-    LO_start = LO_freq - LO_span/2.
-    LO_end = LO_freq + LO_span/2.
-    if verbose: print "in clTools.performIQSweep:  call rchc.roachController.performIQSweep"
+    LO_offset = float(rchc.config.get(rchc.roachString,'sweeplooffset',
+                                      vars={"sweeplooffset":"0.0"}))
+    LO_start = LO_freq - LO_span/2. + LO_offset
+    LO_end = LO_freq + LO_span/2. + LO_offset
+    if verbose:
+        print "in clTools.performIQSweep:  call rchc.roachController.performIQSweep"
 
 
     iqData = rchc.roachController.performIQSweep(LO_start/1.e6,
@@ -410,13 +413,18 @@ def getDewarTemperature(cryoBossDir="/mnt/ppd-115696/log"):
     retval['faat'] = float(lll[3])
     return retval
 
+def getNewestDewarFile(globString="*", cryoBossDir="/mnt/ppd-115696/log"):
+    newestFile = max(glob.iglob(cryoBossDir+"/*"), key=os.path.getmtime)
+    return newestFile
+    
 def getTonedef(rchc):
     try:
         return rchc.config.get(rchc.roachString, "tonedigest",0)
     except ConfigParser.NoOptionError:
         return ""
 
-def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
+def setTones(rchc, freqListIn = np.array([5.81e9]),
+             fullScaleFraction=0.95):
     """
     For the set of frequencies, calculate the attenuations that will
     use fullScaleFraction of the dynamic range, and load the look up
@@ -429,6 +437,8 @@ def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
     retval = {}
     retval['tBegin'] = datetime.datetime.now()
 
+    if not isinstance(freqListIn, np.ndarray):
+        freqListIn = np.array(freqListIn)
     m1 = hashlib.md5()
     loFreq = int(rchc.config.getfloat(rchc.roachString,'lo_freq'))
     m1.update((1.0+fullScaleFraction)*freqListIn/loFreq)
@@ -464,9 +474,17 @@ def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
         gain = float(fullScaleFraction)*maxAmp/highestValue
         gainDb = 20*np.log10(gain)
         resAttenList -= gainDb
-        dacComb = rchc.roachController.generateDacComb(
-            globalDacAtten = globalDacAtten,
-            resAttenList = resAttenList)
+        globalDacAtten -= gainDb
+        try:
+            dacComb = rchc.roachController.generateDacComb(
+                globalDacAtten = globalDacAtten,
+                resAttenList = resAttenList)
+        except ValueError, argument:
+            print "HELLO THERE"
+            print "argument =",argument
+            newGlobalDacAtten = np.floor(4*float(argument.split()[-1]))/4.0
+            raise ValueError("globalDacAtten=%f,newGlobalDacAtten=%f"%(globalDacEtten,newGlobalDacAtten))
+        
         highestValue = max(np.abs(dacComb['I']).max(),np.abs(dacComb['Q']).max())
         rchc.roachController.verbose = False
 
@@ -478,8 +496,11 @@ def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
         print "from clToosl: RoachConnection.defineRoachLUTs:  call loadDdsLUT"
         rchc.roachController.loadDdsLUT()
 
-
-        adcAtten = rchc.config.getfloat(rchc.roachString,'adcatten')
+        try:
+            adcAtten = rchc.config.getfloat(rchc.roachString,'adcatten')
+        except ConfigParser.NoOptionError:
+            adcAtten = 26.75
+            rchc.config.set(rchc.roachString,'adcatten',str(adcAtten))
         print "Initializing ADC/DAC board communication"
         rchc.roachController.initializeV7UART()
         print "Setting Attenuators"
@@ -492,6 +513,8 @@ def setTones(rchc, freqListIn = np.array([5.81e9]), fullScaleFraction=0.95):
         print "Loading DAC LUT"
         rchc.roachController.loadDacLUT()
         rchc.config.set(rchc.roachString, "tonedigest", thisTonedef)
+        dacPercent = 100*highestValue/maxAmp
+        rchc.config.set(rchc.roachString, "dacPercent", str(dacPercent))
     retval['tonedef'] = thisTonedef
     retval['tEnd'] = datetime.datetime.now()
     return retval
@@ -519,3 +542,47 @@ def setupAndSweep(roachNumber, configFile, nSweep=1):
         t2 = datetime.datetime.now()
         print "finished sweep with t2 =",t2
         pickle.dump(iqData, open(outputFileName, 'wb'))
+
+def rtTest(rchc):
+    # RoachStateMachine calls these in order:
+    # self.rotateLoops()
+    # self.translateLoops()
+    
+
+    
+    # use rchc.recentIQData and ape logic in RoachStateMachine.translateLoops(), after the sweep is done
+    rchc.I_data = rchc.recentIQData['I']
+    rchc.Q_data = rchc.recentIQData['Q']
+    # from RoachStatemachine.fitLoopCenters
+    I_centers = (np.percentile(rchc.I_data,95,axis=1) + np.percentile(rchc.I_data,5,axis=1))/2.
+    Q_centers = (np.percentile(rchc.Q_data,95,axis=1) + np.percentile(rchc.Q_data,5,axis=1))/2.
+    rchc.centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
+    # From fitLoopCenters
+    rchc.roachController.loadIQcenters(rchc.centers)
+
+    return 12345
+
+    # use rchc.recentIQData and ape logic in RoachStateMachine.rotateLoops(), after the sweep is done
+    nIQPoints = 100
+    averageIQ = rchc.roachController.takeAvgIQData(nIQPoints)
+    avg_I = np.average(averageIQ['I'],1) - rchc.centers[:,0]
+    avg_Q = np.average(averageIQ['Q'],1) - rchc.centers[:,1]
+    rotation_phases = np.arctan2(avg_Q,avg_I)
+    #rotation_phases = np.ones(rotation_phases.shape)*90*np.pi/180.
+    phaseList = np.copy(rchc.roachController.ddsPhaseList)
+    #channels, streams = self.roachController.freqChannelToStreamChannel()
+    channels, streams = rchc.roachController.getStreamChannelFromFreqChannel()
+    for i in range(len(channels)):
+        print "i=",i," channels[i]=",channels[i]," streams[i]=",streams[i], "phaseList.shape=",phaseList.shape
+        phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
+        
+        
+    #for i in range(len(self.roachController.freqList)):
+    #    arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+    #    #phaseList[arg]+=rotation_phases[i]
+    #    phaseList[arg]+=-1*np.pi/2.
+        
+    rchc.roachController.generateDdsTones(phaseList=phaseList)
+    rchc.roachController.loadDdsLUT()
+
+

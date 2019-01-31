@@ -42,10 +42,10 @@ def multiToneScanner(rchc, iqData=None):
     multiToneScannerWindow.show()
     return multiToneScannerWindow
 
-def findResonances(rchc, iqData=None):
+def findResonances(rchc):
     reload(FindResonancesWindow)
     findResonancesWindow = FindResonancesWindow.\
-                           FindResonancesWindow(rchc, iqData)
+                           FindResonancesWindow(rchc)
     findResonancesWindow.show()
     return findResonancesWindow
 
