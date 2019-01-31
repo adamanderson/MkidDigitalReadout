@@ -247,12 +247,17 @@ class Worker(QThread):
     def run(self):
         while self.keepAlive:
             try:
-                message = dqToWorker.popleft()
+                try:
+                    message = dqToWorker.popleft()
+                except AttributeError:
+                    raise IndexError
                 self.doASweep()
                 dqToWorker.clear()
             except IndexError:
-                time.sleep(0.1)
-                
+                try:
+                    time.sleep(0.1)
+                except AttributeError:
+                    pass
     def doASweep(self, verbose=False):
         if verbose: print "ResonancePlotWindow.doASweep: begin"
         timestamp = datetime.datetime.now()
