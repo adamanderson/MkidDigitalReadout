@@ -500,10 +500,11 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         phaseList = np.copy(self.roachController.ddsPhaseList)
         #channels, streams = self.roachController.freqChannelToStreamChannel()
         channels, streams = self.roachController.getStreamChannelFromFreqChannel()
-        if self.verbose:
-            for i in range(len(channels)):
-                print "i=",i," channels[i]=",channels[i]," streams[i]=",streams[i], "phaseList.shape=",phaseList.shape
-                phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
+        for i in range(len(channels)):
+            if self.verbose:
+                print "i =",i," channels[i]=",channels[i]," streams[i]=",streams[i]
+                print "   ","rotation_phases[i] =",rotation_phases[i]
+            phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
         
         
         #for i in range(len(self.roachController.freqList)):
