@@ -224,6 +224,7 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     iqData['timestamp'] = datetime.datetime.now()
     iqData['freqList']  = rchc.roachController.freqList
     iqData['dacPhaseList'] = rchc.roachController.dacPhaseList
+    iqData['centers'] = calculateCenters(iqData['I'],iqData['Q'])
     if saveToFile is not None:
         if verbose: print "save to file"
         saveIQSweepToFile(rchc, iqData, saveToFile)
@@ -543,6 +544,7 @@ def setupAndSweep(roachNumber, configFile, nSweep=1):
         print "finished sweep with t2 =",t2
         pickle.dump(iqData, open(outputFileName, 'wb'))
 
+
 def rtTest(rchc):
     # RoachStateMachine calls these in order:
     # self.rotateLoops()
@@ -586,3 +588,67 @@ def rtTest(rchc):
     rchc.roachController.loadDdsLUT()
 
 
+def rotateLoops(rchc):
+    # Copy logic from RoachStateMachine.rotateLoops
+    # This presumes that self.sweep() was already called, which sets self.centers
+    # by calling fitLoopCeneter.
+    # In clTools, this is stored in recentIQData['centers'] calculated in a similar way.
+    '''
+    Rotate loops so that the on resonance phase=0
+
+    NOTE: We rotate around I,Q = 0. Not around the center of the loop
+          When we translate after, we need to resweep
+
+    Find rotation phase
+        - Get average I and Q at resonant frequency
+    Rewrite the DDS LUT with new phases
+
+    OUTPUTS:
+        dictionary with keywords:
+        IonRes - The average I value on resonance for each resonator
+        QonRes - The average Q value on resonance for each resonator
+        rotation - The rotation angle for each resonator before phasing the DDS LUT
+    '''
+
+    if not hasattr(rchc, 'recentIQData'):
+        raise AttributeError(
+            "rchc does not have recentIQData.  Call clTools.performIQSweep(rchc)")
+    nIQPoints = 100     #arbitrary number. 100 seems fine. Could add this to config file in future
+    averageIQ = rchc.roachController.takeAvgIQData(nIQPoints)
+    avg_I = np.average(averageIQ['I'],1) - rchc.recentIQData['centers'][:,0]
+    avg_Q = np.average(averageIQ['Q'],1) - rchc.recentIQData['centers'][:,1]
+    rotation_phases = np.arctan2(avg_Q,avg_I)
+    #rotation_phases = np.ones(rotation_phases.shape)*90*np.pi/180.
+
+    phaseList = np.copy(rchc.roachController.ddsPhaseList)
+    #channels, streams = rchc.roachController.freqChannelToStreamChannel()
+    channels, streams = rchc.roachController.getStreamChannelFromFreqChannel()
+    for i in range(len(channels)):
+        if rchc.verbose:
+            print "i =",i," channels[i]=",channels[i]," streams[i]=",streams[i]
+            print "   ","rotation_phases[i] =",rotation_phases[i]
+        phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
+
+
+    #for i in range(len(self.roachController.freqList)):
+    #    arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+    #    #phaseList[arg]+=rotation_phases[i]
+    #    phaseList[arg]+=-1*np.pi/2.
+
+    rchc.roachController.generateDdsTones(phaseList=phaseList)
+    rchc.roachController.loadDdsLUT()
+
+    return {'IonRes':np.copy(averageIQ['I']), 'QonRes':np.copy(averageIQ['Q']), 'rotation':np.copy(rotation_phases)}
+
+def calculateCenters(I,Q):
+    '''
+    Finds the (I,Q) center of the loops
+    returns np array of centers:  centers - [nFreqs, 2]
+
+    Logic copied from RoachStateMachine.fitLoopCenters
+    '''
+    
+    I_centers = (np.percentile(I,95,axis=1) + np.percentile(I,5,axis=1))/2.
+    Q_centers = (np.percentile(Q,95,axis=1) + np.percentile(Q,5,axis=1))/2.
+    centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
+    return centers
