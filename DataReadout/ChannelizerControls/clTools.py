@@ -640,6 +640,17 @@ def rotateLoops(rchc):
 
     return {'IonRes':np.copy(averageIQ['I']), 'QonRes':np.copy(averageIQ['Q']), 'rotation':np.copy(rotation_phases)}
 
+def translateLoops(rchc):
+    '''
+    This function loads the IQ loop center into firmware, 
+    taken from rchc.recentIQData['centers']
+    '''
+    if not hasattr(rchc, 'recentIQData'):
+        raise AttributeError(
+            "rchc does not have recentIQData.  Call clTools.performIQSweep(rchc)")
+    centers = rchc.recentIQData['centers']
+    rchc.roachController.loadIQcenters(centers)
+    
 def calculateCenters(I,Q):
     '''
     Finds the (I,Q) center of the loops
@@ -652,3 +663,7 @@ def calculateCenters(I,Q):
     Q_centers = (np.percentile(Q,95,axis=1) + np.percentile(Q,5,axis=1))/2.
     centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
     return centers
+
+def takeAvgIQData(rchc, nIQPoints):
+    averageIQ = rchc.roachController.takeAvgIQData(nIQPoints)
+    return averageIQ
