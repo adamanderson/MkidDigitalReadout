@@ -545,56 +545,14 @@ def setupAndSweep(roachNumber, configFile, nSweep=1):
         pickle.dump(iqData, open(outputFileName, 'wb'))
 
 
-def rtTest(rchc):
-    # RoachStateMachine calls these in order:
-    # self.rotateLoops()
-    # self.translateLoops()
-    
-
-    
-    # use rchc.recentIQData and ape logic in RoachStateMachine.translateLoops(), after the sweep is done
-    rchc.I_data = rchc.recentIQData['I']
-    rchc.Q_data = rchc.recentIQData['Q']
-    # from RoachStatemachine.fitLoopCenters
-    I_centers = (np.percentile(rchc.I_data,95,axis=1) + np.percentile(rchc.I_data,5,axis=1))/2.
-    Q_centers = (np.percentile(rchc.Q_data,95,axis=1) + np.percentile(rchc.Q_data,5,axis=1))/2.
-    rchc.centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
-    # From fitLoopCenters
-    rchc.roachController.loadIQcenters(rchc.centers)
-
-    return 12345
-
-    # use rchc.recentIQData and ape logic in RoachStateMachine.rotateLoops(), after the sweep is done
-    nIQPoints = 100
-    averageIQ = rchc.roachController.takeAvgIQData(nIQPoints)
-    avg_I = np.average(averageIQ['I'],1) - rchc.centers[:,0]
-    avg_Q = np.average(averageIQ['Q'],1) - rchc.centers[:,1]
-    rotation_phases = np.arctan2(avg_Q,avg_I)
-    #rotation_phases = np.ones(rotation_phases.shape)*90*np.pi/180.
-    phaseList = np.copy(rchc.roachController.ddsPhaseList)
-    #channels, streams = self.roachController.freqChannelToStreamChannel()
-    channels, streams = rchc.roachController.getStreamChannelFromFreqChannel()
-    for i in range(len(channels)):
-        print "i=",i," channels[i]=",channels[i]," streams[i]=",streams[i], "phaseList.shape=",phaseList.shape
-        phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
-        
-        
-    #for i in range(len(self.roachController.freqList)):
-    #    arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
-    #    #phaseList[arg]+=rotation_phases[i]
-    #    phaseList[arg]+=-1*np.pi/2.
-        
-    rchc.roachController.generateDdsTones(phaseList=phaseList)
-    rchc.roachController.loadDdsLUT()
-
-
-def rotateLoops(rchc):
+def rotateLoops(rchc, nIQPoints = 100):
     # Copy logic from RoachStateMachine.rotateLoops
     # This presumes that self.sweep() was already called, which sets self.centers
     # by calling fitLoopCeneter.
     # In clTools, this is stored in recentIQData['centers'] calculated in a similar way.
     '''
     Rotate loops so that the on resonance phase=0
+    nIQPoints = 100     #arbitrary number. 100 seems fine. Could add this to config file in future
 
     NOTE: We rotate around I,Q = 0. Not around the center of the loop
           When we translate after, we need to resweep
@@ -613,15 +571,12 @@ def rotateLoops(rchc):
     if not hasattr(rchc, 'recentIQData'):
         raise AttributeError(
             "rchc does not have recentIQData.  Call clTools.performIQSweep(rchc)")
-    nIQPoints = 100     #arbitrary number. 100 seems fine. Could add this to config file in future
     averageIQ = rchc.roachController.takeAvgIQData(nIQPoints)
     avg_I = np.average(averageIQ['I'],1) - rchc.recentIQData['centers'][:,0]
     avg_Q = np.average(averageIQ['Q'],1) - rchc.recentIQData['centers'][:,1]
     rotation_phases = np.arctan2(avg_Q,avg_I)
-    #rotation_phases = np.ones(rotation_phases.shape)*90*np.pi/180.
 
     phaseList = np.copy(rchc.roachController.ddsPhaseList)
-    #channels, streams = rchc.roachController.freqChannelToStreamChannel()
     channels, streams = rchc.roachController.getStreamChannelFromFreqChannel()
     for i in range(len(channels)):
         if rchc.verbose:
@@ -630,15 +585,12 @@ def rotateLoops(rchc):
         phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
 
 
-    #for i in range(len(self.roachController.freqList)):
-    #    arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
-    #    #phaseList[arg]+=rotation_phases[i]
-    #    phaseList[arg]+=-1*np.pi/2.
-
     rchc.roachController.generateDdsTones(phaseList=phaseList)
     rchc.roachController.loadDdsLUT()
 
-    return {'IonRes':np.copy(averageIQ['I']), 'QonRes':np.copy(averageIQ['Q']), 'rotation':np.copy(rotation_phases)}
+    return {'IonRes':np.copy(averageIQ['I']),
+            'QonRes':np.copy(averageIQ['Q']),
+            'rotation':np.copy(rotation_phases)}
 
 def translateLoops(rchc):
     '''
@@ -664,6 +616,52 @@ def calculateCenters(I,Q):
     centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
     return centers
 
-def takeAvgIQData(rchc, nIQPoints):
-    averageIQ = rchc.roachController.takeAvgIQData(nIQPoints)
-    return averageIQ
+def takeAvgIQData(rchc, numPts = 100, verbose=True):
+    # Copy logic in Roach2Controls.takeAvgIQData
+        """
+        Take IQ data with the LO fixed (at self.LOFreq)
+        This collects samples at approximately 10 Hz.
+        INPUTS:
+            numPts - Number of IQ points to take 
+        
+        OUTPUTS:
+            iqData - Dictionary with following keywords
+              I - 2D array with shape = [nFreqs, numPts]
+              Q - 2D array with shape = [nFreqs, numPts]
+              timestamps - time of each sample = [numPts]
+        """
+        
+        nStreams = rchc.roachController.params['nChannels']/rchc.roachController.params['nChannelsPerStream']
+        iqData = np.empty([nStreams,0])
+        rchc.roachController.fpga.write_int(rchc.roachController.params['iqSnpStart_reg'],0)        
+        iqPt = np.empty([nStreams,rchc.roachController.params['nChannelsPerStream']*4])
+        timestamps = np.empty(numPts, dtype='datetime64[us]')
+        for i in range(numPts):
+            timestamps[i] = np.datetime64(datetime.datetime.now())
+            if verbose:
+                print timestamps[i],'IQ point #' + str(i)
+            if(i%2==0):
+                for stream in range(nStreams):
+                    rchc.roachController.fpga.snapshots[rchc.roachController.params['iqSnp_regs'][stream]].arm(man_valid = False, man_trig = False) 
+            rchc.roachController.fpga.write_int(rchc.roachController.params['iqSnpStart_reg'],1)
+            time.sleep(0.001)    # takes nChannelsPerStream/fpgaClockRate seconds to load all the values
+            if(i%2==1):
+                for stream in range(nStreams):
+                    iqPt[stream]=rchc.roachController.fpga.snapshots[rchc.roachController.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
+                iqData = np.append(iqData, iqPt,1)
+            rchc.roachController.fpga.write_int(rchc.roachController.params['iqSnpStart_reg'],0)
+        
+        # if odd number of steps then we still need to read out half of the last buffer
+        if numPts % 2 == 1:
+            rchc.roachController.fpga.write_int(rchc.roachController.params['iqSnpStart_reg'],1)
+            time.sleep(0.001)
+            for stream in range(nStreams):
+                iqPt[stream]=rchc.roachController.fpga.snapshots[rchc.roachController.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
+            iqData = np.append(iqData, iqPt[:,:rchc.roachController.params['nChannelsPerStream']*2],1)
+            rchc.roachController.fpga.write_int(rchc.roachController.params['iqSnpStart_reg'],0)
+
+        retval = rchc.roachController.formatIQSweepData(iqData)
+        retval['timestamps'] = timestamps
+        return retval
+    
+
