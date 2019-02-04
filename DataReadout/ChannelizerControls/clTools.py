@@ -616,6 +616,20 @@ def calculateCenters(I,Q):
     centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
     return centers
 
+def readCenters(rchc):
+    """
+    Ask the fpga to return the centers it is using
+    """
+    channels, streams = rchc.roachController.getStreamChannelFromFreqChannel()
+    centers = np.empty((len(channels),2))
+    for i,(ch,stream) in enumerate(zip(channels, streams)):
+        center = rchc.roachController.fpga.read_int(rchc.roachController.params['iqCenter_regs'][stream])
+        Q_c = 8*(center & (2**16-1))
+        I_c = 8*(center >> 16)
+        centers[i,:] = (I_c,Q_c)
+        print "i,center =",i,center
+    return centers
+        
 def takeAvgIQData(rchc, numPts = 100, verbose=True):
     # Copy logic in Roach2Controls.takeAvgIQData
         """
