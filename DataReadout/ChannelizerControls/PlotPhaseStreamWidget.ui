@@ -52,6 +52,60 @@
        </widget>
       </item>
       <item>
+       <widget class="QComboBox" name="nMaxToPlot">
+        <property name="toolTip">
+         <string>maximum number of points to plot</string>
+        </property>
+        <property name="currentIndex">
+         <number>3</number>
+        </property>
+        <item>
+         <property name="text">
+          <string>1e3</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1e4</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1e5</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1e6</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1e7</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="downsamplingFactor">
+        <property name="minimumSize">
+         <size>
+          <width>50</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>DownSampling factor </string>
+        </property>
+        <property name="text">
+         <string>????</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QComboBox" name="symbolSize">
         <property name="toolTip">
          <string>Symbol Size</string>

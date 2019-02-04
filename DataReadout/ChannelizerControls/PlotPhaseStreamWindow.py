@@ -9,7 +9,7 @@ import clTools
 reload(clTools)
 import LoopFitter
 reload(LoopFitter)
-
+from scipy.signal import decimate
 
 if not sys.warnoptions:
     warnings.simplefilter("ignore")
@@ -32,7 +32,7 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
         uic.loadUi(os.path.join(thisDir,'PlotPhaseStreamWidget.ui'), self)
 
         self.vPen = pg.mkPen(color='k', style=QtCore.Qt.DashLine)
-        self.setWindowTitle('FindResonances')
+        self.setWindowTitle('PlotPhaseStream')
         
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
@@ -65,6 +65,7 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
 
         self.setIFreqItems()
 
+        self.nMaxToPlot.currentIndexChanged.connect(self.updatePlots)
         self.symbolSize.currentIndexChanged.connect(self.updatePlots)
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
@@ -237,8 +238,22 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
                       "symbolPen":pc,
                       "pen":pc}
             if self.wtp == "phases":
-                times = 1e-6*np.arange(len(phases))
-                self.topPlot.plot(times, phases, **kwargs) 
+                nMaxToPlot = int(float(self.nMaxToPlot.currentText()))
+                downsamplingFactor = 1 + (len(phases)/nMaxToPlot)
+                print "len(phases) =",len(phases)
+                print "nMaxToPlot=",nMaxToPlot
+                print "downsamplingFactor=",downsamplingFactor
+                self.downsamplingFactor.setText(str(downsamplingFactor))
+                if downsamplingFactor == 1:
+                    times = 1e-6*np.arange(len(phases))
+                    self.topPlot.plot(times, phases, **kwargs)
+                else:
+                    print datetime.datetime.now(),"begin decimate"
+                    dPhases = decimate(phases, downsamplingFactor)
+                    print datetime.datetime.now(),"ended decimate"
+                    dTimes = 1e-6*downsamplingFactor*np.arange(len(dPhases))
+                    self.topPlot.plot(dTimes, dPhases, **kwargs)
+                                                    
                 self.topPlot.setLabel('bottom', 'time', 's')
                 self.topPlot.setLabel('left', "phase", "radians")
 
