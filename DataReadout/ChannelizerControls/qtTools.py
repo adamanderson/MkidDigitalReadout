@@ -10,6 +10,8 @@ import MultiToneScannerWindow
 reload(MultiToneScannerWindow)
 import FindResonancesWindow
 reload(FindResonancesWindow)
+import PlotPhaseStreamWindow
+reload(PlotPhaseStreamWindow)
 import IQPlotWindow
 reload(IQPlotWindow)
 import PhasePlotWindow
@@ -48,6 +50,13 @@ def findResonances(rchc):
                            FindResonancesWindow(rchc)
     findResonancesWindow.show()
     return findResonancesWindow
+
+def plotPhaseStream(rchc):
+    reload(PlotPhaseStreamWindow)
+    plotPhaseStreamWindow = PlotPhaseStreamWindow.\
+                           PlotPhaseStreamWindow(rchc)
+    plotPhaseStreamWindow.show()
+    return plotPhaseStreamWindow
 
 def plotIQ(rchc):
     reload(IQPlotWindow)
