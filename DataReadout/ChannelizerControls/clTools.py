@@ -665,3 +665,32 @@ def takeAvgIQData(rchc, numPts = 100, verbose=True):
         return retval
     
 
+def getPhaseStream(rchc, channel, duration=2):
+    """
+Continuously observes the phase stream for a given amount of time
+
+INPUTS:
+    channel - the i'th frequency in the frequency list
+    time - [seconds] the amount of time to observe for
+Return:
+    dictionary of:
+    data - list of phase in radians; collected at ~ 1MHz
+    channel - requested channel
+    resID - resonator ID of the requested channel
+    duration - requested duration
+    t0 -- datetime.datetime.now() at start
+    t1 -- datetime.datetime.now() at end
+    """
+    resID = rchc.roachController.resIDs[channel]
+    ipaddress = rchc.config.get(rchc.roachString, 'ipaddress')
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect((ipaddress,80))
+    hostip = s.getsockname()[0]
+    port = int(rchc.config.get(rchc.roachString,'port'))
+    t0 = datetime.datetime.now()
+    data=rchc.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel,
+                                                               duration=duration,
+                                                               hostIP=hostip,
+                                                               fabric_port=port)
+    t1 = datetime.datetime.now()
+    return {"data":data, "t0":t0, "t1":t1, "duration":duration, "resID":resID}
