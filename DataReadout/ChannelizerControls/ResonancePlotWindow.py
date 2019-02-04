@@ -1,6 +1,6 @@
 import datetime, time, os, json_tricks, pickle
 from PyQt4 import QtGui, uic, QtCore
-from PyQt4.QtCore import QThread, pyqtSignal, QTimer
+from PyQt4.QtCore import QThread, pyqtSignal, QTimer, QRectF, QPointF
 import numpy as np
 from collections import deque
 import H5IO
@@ -67,6 +67,8 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.loStep.valueChanged.connect(self.updateNStep)
         self.loSpan.valueChanged.connect(self.updateNStep)        
         self.updateNStep()
+        self.graphicsLayoutWidget.scene().sigMouseMoved\
+                                         .connect(self.mouseMoved)
         self.show()
         try:
             recentIQData = self.rchc.recentIQData
@@ -144,6 +146,22 @@ class ResonancePlotWindow(QtGui.QMainWindow):
     def whatToPlotChanged(self, index):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.updatePlots()
+
+    def mouseMoved(self, event):
+        for i,item in enumerate(self.graphicsLayoutWidget.items()):
+            if isinstance(item, pg.graphicsItems.ViewBox.ViewBox):
+                sbr = item.sceneBoundingRect()
+                tr = item.state['targetRange']
+                qr = QRectF(QPointF(tr[0][0],tr[1][0]),\
+                            QPointF(tr[0][1],tr[1][1]))
+                mousePoint = item.mapSceneToView(event)
+                contains = qr.contains(mousePoint)
+                p = item.parentItem()
+                a = p.getAxis('top')
+                if contains:
+                    setCursorLocationText(a, (mousePoint.x(), mousePoint.y()))
+                else:
+                    setCursorLocationText(a, None)
 
     def updatePlots(self):
         # self.recentIQData is a dictionary of:  I and Q, where I and Q are 2d
@@ -283,3 +301,15 @@ def ssColor(color):
     retval += color
     retval += "}"
     return retval
+
+def setCursorLocationText(a, xy):
+    #a = viewBox.parentItem().getAxis('top')
+    a.style['showValues'] = False
+    a.autoSIPrefix = False
+    a.show()
+    if xy is None:
+        text = ""
+    else:
+        text = "%f %f"%(xy[0],xy[1])
+    a.setLabel(text)
+    a.showLabel()
