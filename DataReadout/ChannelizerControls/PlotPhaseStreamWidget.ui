@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1491</width>
-    <height>566</height>
+    <width>1320</width>
+    <height>501</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -39,7 +39,7 @@
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_4">
       <item>
-       <widget class="QLabel" name="callIQTakeAvgTime">
+       <widget class="QLabel" name="callGetPhaseStreamTime">
         <property name="minimumSize">
          <size>
           <width>150</width>
@@ -47,7 +47,7 @@
          </size>
         </property>
         <property name="text">
-         <string>callTakeIQAvgTime?</string>
+         <string>callGetPhaseStreamTime?</string>
         </property>
        </widget>
       </item>
@@ -57,7 +57,7 @@
          <string>Symbol Size</string>
         </property>
         <property name="currentIndex">
-         <number>4</number>
+         <number>2</number>
         </property>
         <item>
          <property name="text">
@@ -108,53 +108,21 @@
         </property>
         <item>
          <property name="text">
-          <string>LoopsAndVelocity</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>IQ</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>MagPhase</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>PeakFinder</string>
+          <string>phases</string>
          </property>
         </item>
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="loSpanHz">
-        <property name="toolTip">
-         <string>LO Span (Hz)</string>
+       <widget class="QDoubleSpinBox" name="duration">
+        <property name="maximum">
+         <double>2.000000000000000</double>
         </property>
-        <property name="text">
-         <string>1e6</string>
+        <property name="singleStep">
+         <double>0.010000000000000</double>
         </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="loStepHz">
-        <property name="toolTip">
-         <string>LO Step (Hz)</string>
-        </property>
-        <property name="text">
-         <string>0.1e6</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="loOffsetHz">
-        <property name="toolTip">
-         <string>LO Offset (Hz)</string>
-        </property>
-        <property name="text">
-         <string>0</string>
+        <property name="value">
+         <double>0.010000000000000</double>
         </property>
        </widget>
       </item>
@@ -166,7 +134,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="sweepState">
+       <widget class="QPushButton" name="streamState">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
           <horstretch>0</horstretch>
@@ -186,7 +154,7 @@
          </size>
         </property>
         <property name="text">
-         <string>sweepState?</string>
+         <string>streamState?</string>
         </property>
         <property name="checkable">
          <bool>false</bool>
@@ -194,7 +162,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QProgressBar" name="sweepProgressBar">
+       <widget class="QProgressBar" name="streamProgressBar">
         <property name="value">
          <number>0</number>
         </property>
