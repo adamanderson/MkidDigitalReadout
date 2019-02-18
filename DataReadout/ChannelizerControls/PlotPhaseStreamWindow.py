@@ -41,6 +41,10 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
         self.streamState.setStyleSheet(ssColor("lightGreen"))
         self.streamState.setText("Ready to Stream")
 
+        self.wtp = str(self.whatToPlot.currentText()).strip()
+        self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
+        print "init:  self.wtp =",self.wtp
+
         self.streamProgressBar.setMinimum(0)
         self.streamProgressBar.setMaximum(100)
         self.streamProgressBar.setValue(100)
@@ -82,9 +86,6 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
 
         self.recentPhaseStreamData = phaseStreamData
             
-        self.wtp = str(self.whatToPlot.currentText()).strip()
-        self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
-        print "init:  self.wtp =",self.wtp
 
         self.graphicsLayoutWidget.scene().sigMouseMoved\
                                          .connect(self.mouseMoved)

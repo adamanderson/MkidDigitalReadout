@@ -57,7 +57,7 @@
          <string>maximum number of points to plot</string>
         </property>
         <property name="currentIndex">
-         <number>3</number>
+         <number>1</number>
         </property>
         <item>
          <property name="text">
