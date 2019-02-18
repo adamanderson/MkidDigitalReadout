@@ -18,7 +18,7 @@
     <rect>
      <x>0</x>
      <y>530</y>
-     <width>1071</width>
+     <width>1169</width>
      <height>72</height>
     </rect>
    </property>
@@ -52,6 +52,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="showFits">
+        <property name="text">
+         <string>ShowFits</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QComboBox" name="whatToPlot">
         <item>
          <property name="text">
@@ -80,7 +87,7 @@
       <item>
        <widget class="QDoubleSpinBox" name="loSpan">
         <property name="maximum">
-         <double>20000.000000000000000</double>
+         <double>5000000.000000000000000</double>
         </property>
        </widget>
       </item>
@@ -94,7 +101,7 @@
       <item>
        <widget class="QDoubleSpinBox" name="loStep">
         <property name="maximum">
-         <double>500.000000000000000</double>
+         <double>500000.000000000000000</double>
         </property>
        </widget>
       </item>
@@ -184,6 +191,58 @@
        </widget>
       </item>
       <item>
+       <widget class="QDoubleSpinBox" name="a1">
+        <property name="toolTip">
+         <string>atten 1</string>
+        </property>
+        <property name="maximum">
+         <double>31.750000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.250000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="a2">
+        <property name="toolTip">
+         <string>atten 2</string>
+        </property>
+        <property name="maximum">
+         <double>31.750000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.250000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="a3">
+        <property name="toolTip">
+         <string>atten 3</string>
+        </property>
+        <property name="maximum">
+         <double>31.750000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.250000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="a4">
+        <property name="toolTip">
+         <string>atten 4</string>
+        </property>
+        <property name="maximum">
+         <double>31.750000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.250000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
        <spacer name="horizontalSpacer">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -195,6 +254,22 @@
          </size>
         </property>
        </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="LOFreq">
+        <property name="minimumSize">
+         <size>
+          <width>90</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>LO Frequency</string>
+        </property>
+        <property name="text">
+         <string>6,000,000,000</string>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QComboBox" name="iFreq"/>

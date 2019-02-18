@@ -10,10 +10,11 @@ reload(clTools)
 import LoopFitter
 reload(LoopFitter)
 
-rdPen = pg.mkPen('r', style=QtCore.Qt.DashLine)
 dqToWorker = deque()
 
 import pyqtgraph as pg
+rdPen = pg.mkPen('r', style=QtCore.Qt.DashLine)
+
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
@@ -60,7 +61,19 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.recentIQData = None
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.whatToPlot.currentIndexChanged.connect(self.whatToPlotChanged)
-
+        self.showFits.stateChanged.connect(self.updatePlots)
+        self.a1.editingFinished.connect(self.attenChanged)
+        self.a2.editingFinished.connect(self.attenChanged)
+        self.a3.editingFinished.connect(self.attenChanged)
+        self.a4.editingFinished.connect(self.attenChanged)
+        attens = {1:self.a1, 2:self.a2, 3:self.a3, 4:self.a4}
+        for iAtten in attens.keys():
+            attens[iAtten].setValue(rchc.roachController.attenVal[iAtten])
+        self.a1.valueChanged.connect(self.attenChanging)
+        self.a2.valueChanged.connect(self.attenChanging)
+        self.a3.valueChanged.connect(self.attenChanging)
+        self.a4.valueChanged.connect(self.attenChanging)
+            
         LO_span = self.rchc.config.getfloat(rchc.roachString,"sweeplospan")
         LO_step = self.rchc.config.getfloat(rchc.roachString,"sweeplostep")
         self.loStep.setValue(LO_step/1e3)
@@ -70,6 +83,9 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.updateNStep()
         self.graphicsLayoutWidget.scene().sigMouseMoved\
                                          .connect(self.mouseMoved)
+
+        self.LOFreq.setText("{:,}".format(self.rchc.roachController.LOFreq))
+        
         self.show()
         try:
             recentIQData = self.rchc.recentIQData
@@ -148,6 +164,20 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.wtp = str(self.whatToPlot.currentText()).strip()
         self.updatePlots()
 
+    def attenChanging(self):
+        sender = self.sender()
+        sender.setStyleSheet("background-color:yellow;")        
+        
+    def attenChanged(self):
+        sender = self.sender()
+        senderName = self.sender().objectName()
+        value = sender.value()
+        iAtten = int(senderName[-1])
+        self.rchc.roachController.changeAtten(iAtten, value)
+        setValue = self.rchc.roachController.attenVal[iAtten]
+        sender.setValue(setValue)
+        sender.setStyleSheet("background-color:white;")
+        
     def mouseMoved(self, event):
         for i,item in enumerate(self.graphicsLayoutWidget.items()):
             if isinstance(item, pg.graphicsItems.ViewBox.ViewBox):
@@ -171,13 +201,14 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         # Here is documentation of options to the "plot" command
         # http://pyqtgraph.org/documentation/_modules/pyqtgraph/graphicsItems/PlotDataItem.html#PlotDataItem
         if self.recentIQData is not None:
+            showFit = self.recentIQData.has_key("loopFits") and self.showFits.isChecked()
             iFreqIndex = self.iFreqIndex
             self.graphicsLayoutWidget.clear()
             iList = self.recentIQData['I'][iFreqIndex]
             qList = self.recentIQData['Q'][iFreqIndex]
             f0 = self.recentIQData['freqList'][iFreqIndex]
             freqOffsets = self.recentIQData['freqOffsets']
-            if self.recentIQData.has_key("loopFits"):
+            if showFit:
                 # fvap is a tuple of (interpolated frequency, iqVelocity, amplitude, phase) numpy arrays
                 fFit = self.recentIQData['loopFits'][iFreqIndex]['fFit']
                 iFit = self.recentIQData['loopFits'][iFreqIndex]['iFit']
@@ -196,7 +227,8 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 self.bottomPlot.plot(freqOffsets, qList, symbol='o', symbolPen='k', pen='k')
                 self.bottomPlot.setLabel('left','Q','ADUs')
                 self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                if self.recentIQData.has_key("loopFits"):
+                self.topPlot.setXLink(self.bottomPlot)
+                if showFit:
                     fFreqOffsets = fFit-f0
                     self.topPlot.plot(fFreqOffsets, iFit, pen='r')
                     self.topPlot.addLine(x=f0Fit-f0, y=None, pen=rdPen)
@@ -216,7 +248,8 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 self.bottomPlot.plot(freqOffsets, angle, symbol='o', symbolPen='k', pen='k')
                 self.bottomPlot.setLabel('left','phase', 'degrees')
                 self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
-                if self.recentIQData.has_key("loopFits"):
+                self.topPlot.setXLink(self.bottomPlot)
+                if showFit:
                     self.leftPlot.plot(iFit, qFit, pen='r')
                     fFreqOffsets = fFit-f0
                     self.topPlot.plot(fFreqOffsets, fvap[2], pen='r')
@@ -239,7 +272,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 self.rightPlot.plot(favgs, vs, symbol='o', symbolPen='k', pen='k')
                 self.rightPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
                 self.rightPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
-                if self.recentIQData.has_key("loopFits"):
+                if showFit:
                     self.leftPlot.plot(iFit, qFit, pen='r')
                     self.leftPlot.addLine(x=icFit, y=None, pen=rdPen)
                     self.leftPlot.addLine(x=None, y=qcFit, pen=rdPen)
