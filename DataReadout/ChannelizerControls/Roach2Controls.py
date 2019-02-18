@@ -824,7 +824,7 @@ class Roach2Controls:
                 1 - RF Upconverter path
                 2 - RF Upconverter path
                 3 - RF Downconverter path
-            attenVal - attenuation between 0 and 31.75 dB. Must be multiple of 0.25 dB
+            attenVal - attenuation between 0 and 31.75 dB. Rounded to be a multiple of 0.25 dB
         """
         if attenValInput > 31.75 or attenValInput<0:
             raise ValueError("Attenuation must be between 0 and 31.75 but attenValInput =%s"%str(attenValInput))
@@ -851,7 +851,7 @@ class Roach2Controls:
 
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
-        self.attenVal[attenID] = attenVal/4
+        self.attenVal[attenID] = attenVal/4.0 # remember the fractional part
     def snapZdok(self,nRolls=0):
         snapshotNames = self.fpga.snapshots.names()
 
@@ -2129,7 +2129,7 @@ class Roach2Controls:
             Q_c = int(centers[i][1]/2**3)
             
             center = (I_c<<16) + (Q_c<<0)   # 32 bit number - 16bit I + 16bit Q
-            #print 'loading I,Q',I_c,Q_c
+            print 'Roach2Controls:  loading i,I_c,Q_c,center',i,I_c,Q_c,center
             self.fpga.write_int(self.params['iqCenter_regs'][stream], center)
             self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], (ch<<1)+(1<<0))
             self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], 0)
