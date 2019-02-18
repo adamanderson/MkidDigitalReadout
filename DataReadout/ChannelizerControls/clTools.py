@@ -169,6 +169,11 @@ def setup(rchc):
         #rchc.loadFIRs() moved to init
     else:
         print "already loaded:  tonedef =",thisTonedef
+    attenVals = rchc.roachController.attenVal
+    for iAtten in attenVals.keys():
+        if attenVals[iAtten] is None:
+            rchc.roachController.changeAtten(iAtten, 0)
+        
     return rchc
 
 def loadFIRs(rchc):
@@ -192,7 +197,7 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
       'fFit'    -- fit frequencies, nFit=2000 values, 10% larger than range of fValues
       'iFit'    -- I values from the fit parameters stored in 'nsq'.x
       'qFit'    -- I values from the fit parameters stored in 'nsq'.x
-
+      'fpgaCenters' -- from readCenters(rchc)
     """
     LO_freq = rchc.roachController.LOFreq
     LO_span = rchc.config.getfloat(rchc.roachString,'sweeplospan')
@@ -225,6 +230,7 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
     iqData['freqList']  = rchc.roachController.freqList
     iqData['dacPhaseList'] = rchc.roachController.dacPhaseList
     iqData['centers'] = calculateCenters(iqData['I'],iqData['Q'])
+    iqData['fpgaCenters'] = readCenters(rchc)
     if saveToFile is not None:
         if verbose: print "save to file"
         saveIQSweepToFile(rchc, iqData, saveToFile)
@@ -601,6 +607,7 @@ def translateLoops(rchc):
         raise AttributeError(
             "rchc does not have recentIQData.  Call clTools.performIQSweep(rchc)")
     centers = rchc.recentIQData['centers']
+    print "clTools.translateLoops:  centers=",centers
     rchc.roachController.loadIQcenters(centers)
     
 def calculateCenters(I,Q):
@@ -627,7 +634,6 @@ def readCenters(rchc):
         Q_c = 8*(center & (2**16-1))
         I_c = 8*(center >> 16)
         centers[i,:] = (I_c,Q_c)
-        print "i,center =",i,center
     return centers
         
 def takeAvgIQData(rchc, numPts = 100, verbose=True):
@@ -708,3 +714,31 @@ Return:
                                                                fabric_port=port)
     t1 = datetime.datetime.now()
     return {"data":data, "t0":t0, "t1":t1, "duration":duration, "resID":resID}
+
+def getTwoSnapshots(rchc):
+    # Copy guts of the logic in Roach2Controls.performIQSweep
+    fpga = rchc.roachController.fpga
+    params = rchc.roachController.params
+    nChannels = params['nChannels']
+    nChannelsPerStream = params['nChannelsPerStream']
+    nStreams = nChannels/nChannelsPerStream
+    
+    retval = []
+
+    # first time through "for i in range(len(LOFreqs))"
+    for stream in range(nStreams):
+        fpga.snapshots[params['iqSnp_regs'][stream]].arm(man_valid=False, man_trig=False)
+    
+    fpga.write_int(params['iqSnpStart_reg'],1)
+    time.sleep(0.001)
+    fpga.write_int(params['iqSnpStart_reg'],0)
+
+    # second time through "for i in range(len(LOFreqs))"
+    fpga.write_int(params['iqSnpStart_reg'],1)
+    time.sleep(0.001)
+    for stream in range(nStreams):
+        ss = fpga.snapshots[params['iqSnp_regs'][stream]].read(timeout=10, arm=False)
+        retval.append(ss)
+    fpga.write_int(params['iqSnpStart_reg'],0)
+
+    return retval
