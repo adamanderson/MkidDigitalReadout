@@ -1,7 +1,7 @@
 import datetime, time, os, socket
-from PyQt4 import QtGui, uic
-from PyQt4.QtGui import QPixmap
-from PyQt4.QtCore import QThread, pyqtSignal, QTimer
+from PyQt5 import QtGui, uic
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
 from scipy.signal import welch

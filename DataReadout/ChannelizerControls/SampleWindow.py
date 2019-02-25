@@ -26,8 +26,8 @@ $ python SampleWindow.py
 """
 
 import time
-from PyQt4 import QtGui
-from PyQt4.QtCore import QThread
+from PyQt5 import QtGui
+from PyQt5.QtCore import QThread
 from collections import deque
 dqToWorker = deque()
 

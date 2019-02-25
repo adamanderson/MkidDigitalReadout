@@ -1,6 +1,6 @@
 import datetime, time, os, json_tricks, pickle
-from PyQt4 import QtGui, uic, QtCore
-from PyQt4.QtCore import QThread, pyqtSignal, QTimer, QRectF, QPointF
+from PyQt5 import QtGui, uic, QtCore
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer, QRectF, QPointF
 import numpy as np
 from collections import deque
 import H5IO

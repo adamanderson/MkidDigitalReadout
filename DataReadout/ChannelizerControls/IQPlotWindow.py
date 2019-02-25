@@ -1,6 +1,6 @@
 import datetime, time, os
-from PyQt4 import QtGui, uic
-from PyQt4.QtCore import QThread, pyqtSignal, QTimer
+from PyQt5 import QtGui, uic
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 import numpy as np
 from collections import deque
 import H5IO

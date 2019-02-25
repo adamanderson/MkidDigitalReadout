@@ -20,22 +20,7 @@ import ResonancePlotWindow
 reload(ResonancePlotWindow)
 import SampleWindow
 reload(SampleWindow)
-from PyQt4 import QtGui
-
-if QtGui.QApplication.type() == 0:
-    print """
-Warning:  QtGui.QApplication is not running.
-QT Windows will not work, and the entire session will crash if you try.
-Here are two things you could do:
-1)  Start ipython like this:  'ipython --gui=qt'
-or
-2)  Add this line:
-c.TerminalIPythonApp.gui = 'qt'
-to your ipython configuration file, which is probably 
-~/.python/profile_default/ipython_config.py 
-
-Changing the configuration file usually works.  When it does not, use the --gui=qt switch
-    """
+from PyQt5 import QtGui
     
 def multiToneScanner(rchc, iqData=None):
     reload(MultiToneScannerWindow)
