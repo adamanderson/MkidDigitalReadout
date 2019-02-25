@@ -742,3 +742,15 @@ def getTwoSnapshots(rchc):
     fpga.write_int(params['iqSnpStart_reg'],0)
 
     return retval
+
+def snapZdokToFile(rchc, fileNameBase):
+    x = rchc.roachController.snapZdok()
+    keys = x.keys()
+    keys.sort()
+    for key in keys:
+        fn = "%s-%s.csv"%(fileNameBase,key)
+        print "now write ",fn                                            
+        with open(fn,'wb') as handle:
+            for i,v in enumerate(x[key]):
+                line = "%d,%s\n"%(i,str(v))
+                handle.write(line)
