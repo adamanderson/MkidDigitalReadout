@@ -754,3 +754,65 @@ def snapZdokToFile(rchc, fileNameBase):
             for i,v in enumerate(x[key]):
                 line = "%d,%s\n"%(i,str(v))
                 handle.write(line)
+def iqPeakFinder(iqData, thresholdFraction=0.3, pfn=None):
+    I = np.array(iqData['I'])
+    Q = np.array(iqData['Q'])
+    fo = np.array(iqData['freqOffsets'])
+    freqList = np.array(iqData['freqList'])
+    
+    print "I", I.shape
+    print "fo",fo.shape
+    print "freqList",freqList.shape
+    amps = np.empty(I.shape)
+    phases = np.empty(I.shape)
+    fas = np.empty(I.shape)
+    for iFreq,freq in enumerate(freqList):
+        fa = freq + fo
+        fas[iFreq,:] =  fa
+        ia = I[iFreq, :]
+        qa = Q[iFreq, :]
+        ff,v,amps[iFreq,:],phases[iFreq,:] = LoopFitter.getFVAP(fa,ia,qa)
+        #print iFreq,fa[0],fa[1],fa[-1]
+    for iFreq0 in range(len(freqList)-1):
+        iFreq1 = iFreq0+1
+        xMax = fas[iFreq0,:].max()
+        xMin = fas[iFreq1,:].min()
+        a0Mean = amps[iFreq0,fas[iFreq0,:]>=xMin].mean()
+        a1Mean = amps[iFreq1,fas[iFreq1,:]<=xMax].mean()
+        if iFreq0 == -1:
+            plt.scatter(fas[iFreq0,:],amps[iFreq0,:],c='g',s=1)
+            plt.scatter(fas[iFreq1,:],amps[iFreq1,:],c='b',s=1)
+            plt.axvline(xMax, color='r')
+            plt.axvline(xMin, color='r')
+            plt.axhline(a0Mean, color='b')
+            plt.axhline(a1Mean, color='g')
+        amps[iFreq1,:] *= a0Mean/a1Mean
+    fMin = fas[0,0]
+    df = iqData['LO_step']
+    fMax = fas[-1,-1]+df
+    print fMin,df,fMax
+    nBins = int((fMax-fMin)/df)
+    print "nBins =",nBins
+    aSum = np.zeros(nBins)
+    fSum = np.zeros(nBins)
+    nSum = np.zeros(nBins)
+    for iFreq in range(len(freqList)):
+        for iSample,f in enumerate(fas[iFreq,:]):
+            iBin = int((f-fMin)/df)
+            nSum[iBin] += 1
+            fSum[iBin] += f
+            aSum[iBin] += amps[iFreq,iSample]
+    #plt.plot(nSum[-300:])
+    fAvg = fSum/nSum
+    aAvg = aSum/nSum
+    y = aAvg
+    y = (y.max()-y)
+    hMin = thresholdFraction * y.max()
+    peaks,_ = find_peaks(y, height=hMin)
+    if pfn is not None:
+        plt.plot(fAvg, aAvg)
+        plt.plot(fAvg[peaks], aAvg[peaks], 'rx')
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Amplitude (ADUs)")
+        plt.savefig(pfn, dpi=300)
+    return fAvg[peaks]
