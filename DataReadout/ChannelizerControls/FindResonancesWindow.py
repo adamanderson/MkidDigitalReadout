@@ -368,7 +368,7 @@ class Worker(QThread):
     def run(self):
         while self.keepAlive:
             try:
-                # Don't bother checking what the acutal message is.  Then only
+                # Don't bother checking what the actual message is.  Then only
                 # message ever sent is "PleaseDoASweep"
                 message = dqToWorker.popleft()
                 self.doASweep()
@@ -440,8 +440,7 @@ class ToneGenerator(QThread):
         freqListIn = np.linspace(message['fToneMin'],message['fToneMax'],
                                  message['nTone'], endpoint=False)
         print "now call clTools.setTones with freqListIn = ",freqListIn
-        fullScaleFraction = 0.095
-        print "WARNING:  fullScalFraction hardwired to ",fullScaleFraction
+        fullScaleFraction = 0.95
         toneData = clTools.setTones(self.parent.rchc,
                                     freqListIn = freqListIn,
                                     fullScaleFraction = fullScaleFraction)

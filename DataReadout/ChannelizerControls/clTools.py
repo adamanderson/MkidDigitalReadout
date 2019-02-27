@@ -19,6 +19,7 @@ and if you make changes to code in this file:
 import ConfigParser, datetime, dateutil, glob, hashlib, logging, os, pickle, sys, time, timeit,warnings, socket
 import numpy as np
 import scipy.special
+from scipy.signal import butter, filtfilt, find_peaks
 from autoZdokCal import loadDelayCal, findCal
 from myQdr import Qdr as myQdr
 import casperfpga
@@ -30,7 +31,6 @@ import RoachConnection
 reload(RoachConnection)
 import WritePhaseData
 reload(WritePhaseData)
-
 def init(roachNumber, configFile):
     """ 
     Initialize the Roach board after powering up:
@@ -754,7 +754,8 @@ def snapZdokToFile(rchc, fileNameBase):
             for i,v in enumerate(x[key]):
                 line = "%d,%s\n"%(i,str(v))
                 handle.write(line)
-def iqPeakFinder(iqData, thresholdFraction=0.3, pfn=None):
+
+def iqPeakFinder(iqData, thresholdFraction=0.3):
     I = np.array(iqData['I'])
     Q = np.array(iqData['Q'])
     fo = np.array(iqData['freqOffsets'])
@@ -779,13 +780,6 @@ def iqPeakFinder(iqData, thresholdFraction=0.3, pfn=None):
         xMin = fas[iFreq1,:].min()
         a0Mean = amps[iFreq0,fas[iFreq0,:]>=xMin].mean()
         a1Mean = amps[iFreq1,fas[iFreq1,:]<=xMax].mean()
-        if iFreq0 == -1:
-            plt.scatter(fas[iFreq0,:],amps[iFreq0,:],c='g',s=1)
-            plt.scatter(fas[iFreq1,:],amps[iFreq1,:],c='b',s=1)
-            plt.axvline(xMax, color='r')
-            plt.axvline(xMin, color='r')
-            plt.axhline(a0Mean, color='b')
-            plt.axhline(a1Mean, color='g')
         amps[iFreq1,:] *= a0Mean/a1Mean
     fMin = fas[0,0]
     df = iqData['LO_step']
@@ -802,17 +796,10 @@ def iqPeakFinder(iqData, thresholdFraction=0.3, pfn=None):
             nSum[iBin] += 1
             fSum[iBin] += f
             aSum[iBin] += amps[iFreq,iSample]
-    #plt.plot(nSum[-300:])
     fAvg = fSum/nSum
     aAvg = aSum/nSum
     y = aAvg
     y = (y.max()-y)
     hMin = thresholdFraction * y.max()
     peaks,_ = find_peaks(y, height=hMin)
-    if pfn is not None:
-        plt.plot(fAvg, aAvg)
-        plt.plot(fAvg[peaks], aAvg[peaks], 'rx')
-        plt.xlabel("Frequency (Hz)")
-        plt.ylabel("Amplitude (ADUs)")
-        plt.savefig(pfn, dpi=300)
     return fAvg[peaks]

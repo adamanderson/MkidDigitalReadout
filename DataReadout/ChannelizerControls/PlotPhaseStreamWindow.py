@@ -359,8 +359,7 @@ class ToneGenerator(QThread):
         freqListIn = np.linspace(message['fToneMin'],message['fToneMax'],
                                  message['nTone'], endpoint=False)
         print "now call clTools.setTones with freqListIn = ",freqListIn
-        fullScaleFraction = 0.095
-        print "WARNING:  fullScalFraction hardwired to ",fullScaleFraction
+        fullScaleFraction = 0.95
         toneData = clTools.setTones(self.parent.rchc,
                                     freqListIn = freqListIn,
                                     fullScaleFraction = fullScaleFraction)
