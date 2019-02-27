@@ -555,7 +555,8 @@ def rotateLoops(rchc, nIQPoints = 100):
     # Copy logic from RoachStateMachine.rotateLoops
     # This presumes that self.sweep() was already called, which sets self.centers
     # by calling fitLoopCeneter.
-    # In clTools, this is stored in recentIQData['centers'] calculated in a similar way.
+    # In clTools, this is stored in recentIQData['centers'] calculated in a similar way,
+    # when performIQSweep was called.
     '''
     Rotate loops so that the on resonance phase=0
     nIQPoints = 100     #arbitrary number. 100 seems fine. Could add this to config file in future

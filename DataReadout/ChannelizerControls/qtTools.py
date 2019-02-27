@@ -85,3 +85,4 @@ def sampleWindow():
     sampleWindow = SampleWindow.SampleWindow()
     sampleWindow.show()
     return sampleWindow
+

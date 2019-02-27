@@ -216,8 +216,10 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 icFit = self.recentIQData['loopFits'][iFreqIndex]['nsq']['x'][LoopFitter.parameterNames['ic']]
                 qcFit = self.recentIQData['loopFits'][iFreqIndex]['nsq']['x'][LoopFitter.parameterNames['qc']]
                 f0Fit = self.recentIQData['loopFits'][iFreqIndex]['nsq']['x'][LoopFitter.parameterNames['f0']]
-                fvap = LoopFitter.getFVAP(fFit, iFit, qFit)
-                
+                fvap = LoopFitter.getFVAP(fFit, iFit, qFit, iCenter=icFit, qCenter=qcFit)
+                print "ResonancePlotWindow:  f0=",f0, "iFreqIndex=",iFreqIndex
+                print "ResonancePlotWindow:  f0Fit=",f0Fit
+                print "ResonancePlotWindow:  f0Fit-f0=",f0Fit-f0
             if self.wtp == "IQ":
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
@@ -239,14 +241,21 @@ class ResonancePlotWindow(QtGui.QMainWindow):
             elif self.wtp == "MagPhase":
                 iq = np.array(iList) + 1j*np.array(qList)
                 amplitude = np.absolute(iq)
-                angle = np.angle(iq,deg=True)
+                if showFit:
+                    iqa = (np.array(iList)-icFit) + 1j*(np.array(qList)-qcFit)
+                    angle = np.angle(iqa, deg=True)
+                else:
+                    angle = np.angle(iq,deg=True)
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
                 self.topPlot.plot(freqOffsets, amplitude, symbol='o', symbolPen='k', pen='k')
                 self.topPlot.setLabel('left','amplitude', 'ADUs')
                 self.topPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
                 self.bottomPlot.plot(freqOffsets, angle, symbol='o', symbolPen='k', pen='k')
-                self.bottomPlot.setLabel('left','phase', 'degrees')
+                if showFit:
+                    self.bottomPlot.setLabel('left','phase wrt fit center', 'degrees')
+                else:
+                    self.bottomPlot.setLabel('left','phase wrt 0,0', 'degrees')                    
                 self.bottomPlot.setLabel('bottom', 'Frequency Offset', 'Hz')
                 self.topPlot.setXLink(self.bottomPlot)
                 if showFit:
@@ -256,6 +265,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                     self.topPlot.addLine(x=f0Fit-f0, y=None, pen=rdPen)
                     self.bottomPlot.plot(fFreqOffsets, fvap[3], pen='r')
                     self.bottomPlot.addLine(x=f0Fit-f0, y=None, pen=rdPen)
+                    self.bottomPlot.addLine(y=0, x=None, pen=rdPen)
             elif self.wtp == "LoopVelocity":
                 self.leftPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.rightPlot = self.graphicsLayoutWidget.addPlot(0,1)

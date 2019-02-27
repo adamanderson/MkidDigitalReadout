@@ -155,7 +155,7 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
         plt.tight_layout()
         plt.savefig(pfn, dpi=300)
 
-def getFVAP(fa, ia, qa):
+def getFVAP(fa, ia, qa, iCenter=0, qCenter=0):
     df = fa[1]-fa[0]
     di = (ia[1:]-ia[:-1])/df
     dq = (qa[1:]-qa[:-1])/df
@@ -163,7 +163,8 @@ def getFVAP(fa, ia, qa):
     ff = 0.5*(fa[1:]+fa[:-1])
     iqs = ia + 1j*qa
     amps = np.absolute(iqs)
-    phases = np.angle(iqs, deg=True)
+    iqsp = (ia-iCenter) + 1j*(qa-qCenter)
+    phases = np.angle(iqsp, deg=True)
     return (ff,v,amps,phases)
 
 def fittingFunction(parameters):
