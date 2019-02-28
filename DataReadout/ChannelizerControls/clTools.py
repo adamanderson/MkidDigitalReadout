@@ -248,7 +248,14 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
             loopFit = LoopFitter.loopFitter(freqs, ia, qa, nFit=2000)
             if verbose: print "in clTools.performIQSweep:  done loopFitter iFreq =",iFreq
             iqData['loopFits'].append(loopFit)
-    if verbose: print "in clTools.performIQSweep:  return"        
+    if verbose: print "in clTools.performIQSweep:  return"
+
+    # Store IQ data in RoachController object. This is necessary because
+    # subsequent operations using the RoachController object (e.g. rotateLoops)
+    # assume that the results of the IQ sweep are data members of the
+    # RoachController instance.
+    rchc.recentIQData = iqData
+    
     return iqData
 
 def concatenateSweepNew(iqData, continuouseIQ=True):
