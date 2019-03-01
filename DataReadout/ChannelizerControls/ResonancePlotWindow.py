@@ -153,8 +153,9 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         #handle = open('IQDataDict.json','w')
         #json_tricks.dump(data, handle)
         #handle.close()
-        self.recentIQData = data['iqData']
-        self.rchc.recentIQData = self.recentIQData
+        self.recentIQData = data['iqData'] 
+        # This is set in clTools.performIQSweep
+        #self.rchc.recentIQData = self.recentIQData
         self.updatePlots()
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")
