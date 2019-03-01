@@ -248,7 +248,8 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
             loopFit = LoopFitter.loopFitter(freqs, ia, qa, nFit=2000)
             if verbose: print "in clTools.performIQSweep:  done loopFitter iFreq =",iFreq
             iqData['loopFits'].append(loopFit)
-    if verbose: print "in clTools.performIQSweep:  return"        
+    if verbose: print "in clTools.performIQSweep:  return"
+    rchc.recentIQData = iqData
     return iqData
 
 def concatenateSweepNew(iqData, continuouseIQ=True):
@@ -413,7 +414,10 @@ def getDewarTemperature(cryoBossDir="/mnt/ppd-115696/log"):
     Ouput:  dictionary with keys "timestamp" and "faat"
     """
     retval = {"timestamp":None, "faat":None}
-    newestFile = max(glob.iglob(cryoBossDir+"/*"), key=os.path.getmtime)
+    try:
+        newestFile = max(glob.iglob(cryoBossDir+"/*"), key=os.path.getmtime)
+    except ValueError:
+        raise SystemError("perhaps you need to mount cryoBossDir with sudo mount -t cifs //ppd-115696.dhcp.fnal.gov/CryoBoss /mnt/ppd-115696 -o credentials=/home/stoughto/credentials.txt")
     lastLine = tail(newestFile)
     lll = lastLine.split(",")
     retval['timestamp'] = dateutil.parser.parse(lll[0])
@@ -714,7 +718,10 @@ Return:
                                                                hostIP=hostip,
                                                                fabric_port=port)
     t1 = datetime.datetime.now()
-    return {"data":data, "t0":t0, "t1":t1, "duration":duration, "resID":resID}
+    retval = {"data":data, "t0":t0, "t1":t1, "duration":duration, "resID":resID}
+    retval['attenVal'] = rchc.roachController.attenVal
+    retval['faat'] = getDewarTemperature()['faat']    
+    return retval
 
 def getTwoSnapshots(rchc):
     # Copy guts of the logic in Roach2Controls.performIQSweep
