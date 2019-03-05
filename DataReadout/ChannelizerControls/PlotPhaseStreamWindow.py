@@ -9,7 +9,7 @@ import clTools
 reload(clTools)
 import LoopFitter
 reload(LoopFitter)
-from scipy.signal import decimate
+from scipy.signal import decimate, welch
 
 if not sys.warnoptions:
     warnings.simplefilter("ignore")
@@ -225,10 +225,10 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
         if self.recentPhaseStreamData is not None:
             self.graphicsLayoutWidget.clear()
 
-            if self.wtp == "phases":
-                self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
-                setCursorLocationText(self.topPlot.getAxis('top'),None)
-                
+            print "begin updatePlots with ",self.wtp
+            self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
+            setCursorLocationText(self.topPlot.getAxis('top'),None)
+    
             phases = self.recentPhaseStreamData['data']
             symbolSize = int(self.symbolSize.currentText())
 
@@ -238,8 +238,8 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
                       "symbolBrush":pc,
                       "symbolPen":pc,
                       "pen":pc}
+            nMaxToPlot = int(float(self.nMaxToPlot.currentText()))
             if self.wtp == "phases":
-                nMaxToPlot = int(float(self.nMaxToPlot.currentText()))
                 downsamplingFactor = 1 + (len(phases)/nMaxToPlot)
                 print "len(phases) =",len(phases)
                 print "nMaxToPlot=",nMaxToPlot
@@ -258,6 +258,15 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
                 self.topPlot.setLabel('bottom', 'time', 's')
                 self.topPlot.setLabel('left', "phase", "radians")
 
+            elif self.wtp == "Power Spectrum":
+                fs = 1e6
+                nPerSeg = min(nMaxToPlot/4, len(phases))
+                print "nPerSeg =",nPerSeg
+                f,pxx = welch(phases, fs=fs, window='hanning', nperseg=nPerSeg, noverlap=None, nfft=None, detrend='constant',
+                                            return_onesided=True, scaling='spectrum')
+                self.topPlot.plot(f,pxx, **kwargs)
+                self.topPlot.setLogMode(True, True)
+                
     def doTimer(self):
         n = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
