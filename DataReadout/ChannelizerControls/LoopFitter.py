@@ -135,8 +135,8 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
             gq    = param[7]
             ic    = param[8]
             qc    = param[9]
-        iFit = np.zeros(nFit)
-        qFit = np.zeros(nFit)
+        iFit = np.zeros(len(fFit))
+        qFit = np.zeros(len(fFit))
         for (i,f) in enumerate(fFit):
             iq = mazinResonance(f, q, f0, a, v, c, theta, gi, gq, ic, qc)
             iFit[i] = iq.real
