@@ -21,7 +21,8 @@ reload(ResonancePlotWindow)
 import SampleWindow
 reload(SampleWindow)
 from PyQt5 import QtGui
-    
+from PyQt5.QtCore import QTimer
+
 def multiToneScanner(rchc, iqData=None):
     reload(MultiToneScannerWindow)
     multiToneScannerWindow = MultiToneScannerWindow.\
@@ -49,11 +50,11 @@ def plotIQ(rchc):
     iqPlotWindow.show()
     return iqPlotWindow
 
-def plotPhases(rchc):
-    reload(PhasePlotWindow)
-    phasePlotWindow = PhasePlotWindow.PhasePlotWindow(rchc)
-    phasePlotWindow.show()
-    return phasePlotWindow
+#def plotPhases(rchc):
+#    reload(PhasePlotWindow)
+#    phasePlotWindow = PhasePlotWindow.PhasePlotWindow(rchc)
+#    phasePlotWindow.show()
+#    return phasePlotWindow
 
 def plotResonances(rchc):
     reload(ResonancePlotWindow)
@@ -86,3 +87,4 @@ def sampleWindow():
     sampleWindow.show()
     return sampleWindow
 
+    
