@@ -817,3 +817,37 @@ def iqPeakFinder(iqData, thresholdFraction=0.3):
     hMin = thresholdFraction * y.max()
     peaks,_ = find_peaks(y, height=hMin)
     return fAvg[peaks]
+
+def takeSomeData(rchc, nStep, baseName, channel=0, duration=10):
+
+    if baseName is not None:
+        iqFileName = "%s-iq.pkl"%(baseName)
+        if os.path.exists(iqFileName):
+            raise OSError("File exists %s"%iqFileName)
+        print "do initial sweep"
+        loSpanKHz = 1500.0
+        loStepKHz = 40.0
+        loOffsetHz = 0
+        rchc.config.set(rchc.roachString, "sweeplospan",str(loSpanKHz*1e3))
+        rchc.config.set(rchc.roachString, "sweeplostep",str(loStepKHz*1e3))
+        rchc.config.set(rchc.roachString, "sweeplooffset",str(loOffsetHz))
+        performIQSweep(rchc)
+        pickle.dump(rchc.recentIQData, open(iqFileName,'wb'))
+
+    t0Prev = None
+    for iStep in range(nStep):
+        if baseName is not None:
+            streamFileName = "%s-%05d.pkl"%(baseName,iStep)
+            print streamFileName
+            if os.path.exists(streamFileName):
+                raise OSError("File exists %s"%streamFileName)
+        streamData = getPhaseStream(rchc, channel=channel, duration=duration)
+        t0 = streamData['t0']
+        if t0Prev is not None:
+            d = (t0-t0Prev).total_seconds()
+            print iStep, d
+        t0Prev = t0
+        if baseName is not None:
+            pickle.dump(streamData, open(streamFileName,'wb'))
+
+    
