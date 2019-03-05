@@ -218,9 +218,6 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                 qcFit = self.recentIQData['loopFits'][iFreqIndex]['nsq']['x'][LoopFitter.parameterNames['qc']]
                 f0Fit = self.recentIQData['loopFits'][iFreqIndex]['nsq']['x'][LoopFitter.parameterNames['f0']]
                 fvap = LoopFitter.getFVAP(fFit, iFit, qFit, iCenter=icFit, qCenter=qcFit)
-                print "ResonancePlotWindow:  f0=",f0, "iFreqIndex=",iFreqIndex
-                print "ResonancePlotWindow:  f0Fit=",f0Fit
-                print "ResonancePlotWindow:  f0Fit-f0=",f0Fit-f0
             if self.wtp == "IQ":
                 self.topPlot =    self.graphicsLayoutWidget.addPlot(0,0)
                 self.bottomPlot = self.graphicsLayoutWidget.addPlot(1,0)
@@ -289,7 +286,13 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                     self.leftPlot.addLine(x=None, y=qcFit, pen=rdPen)
                     fFreqOffsets = fvap[0]-f0
                     v = fvap[1]
-                    self.rightPlot.plot(fFreqOffsets, v, pen='r')
+
+
+                    name = "fit f0={:,}".format(f0Fit)
+                    #name = "fit f0=%.f"%f0Fit
+                    print "name=",name
+                    self.rightPlot.addLegend()
+                    self.rightPlot.plot(fFreqOffsets, v, pen='r' ,name=name)
                     self.rightPlot.addLine(x=f0Fit-f0, y=None, pen=rdPen)
             #tup = (self.iFreqResID, "{:,}".format(self.iFreqFreq), self.iFreqAtten)
             #self.topPlot.setTitle("%4d %s %5.1f"%tup)
