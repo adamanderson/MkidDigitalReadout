@@ -1,8 +1,10 @@
+import os
 from collections import OrderedDict
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import least_squares
-    
+from scipy.optimize import least_squares, minimize
+from scipy.signal import find_peaks
+
 parameterNames = OrderedDict()
 parameterNames["q"] = 0
 parameterNames["f0"] = 1
@@ -100,17 +102,25 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
     # Plot measured
     ax[0,0].errorbar(loopFit['iValues'],loopFit['qValues'], 
                      sigma, sigma, fmt='b.')
+    ax[0,0].set_xlabel("I")
+    ax[0,0].set_ylabel("Q")
+    
     #ax[0,0].plot(loopFit['iValues'],loopFit['qValues'], color='b')   
     #ax[1,0].plot(1e6*(fvMeasured-f0Guess), vMeasured, color='b')
     ax[1,0].plot((fvMeasured-f0Guess)/1e3, vMeasured,'bo')
+    ax[1,0].set_xlabel("$\Delta$f (kHz)")
+    ax[1,0].set_ylabel("velocity")
     #ax[0,1].plot(1e6*(loopFit['fValues']-f0Guess), aMeasured, label='measured')
     ax[0,1].plot((loopFit['fValues']-f0Guess)/1e3, aMeasured, 'bo')
+    ax[0,1].set_xlabel("$\Delta$f (kHz)")
+    ax[0,1].set_ylabel("amplitude")
     #ax[1,1].plot(1e6*(loopFit['fValues']-f0Guess), pMeasured, color='b')
     ax[1,1].plot((loopFit['fValues']-f0Guess)/1e3, pMeasured, 'bo')
     ax[1,1].set_xlabel("f (kHz)")
+    ax[1,1].set_ylabel("phase")
     
     # Plot guess and fit loops
-    lineColor = {"guess":'r', "fit":'g'}
+    lineColor = {"guess":'r', "fit":'g'}    
     for loopType in ["fit"]:
         if loopType == "guess":
             q     = loopFit['guess']['q']
@@ -147,14 +157,19 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
         fvFit, vFit, aFit, pFit = getFVAP(fFit, iFit, qFit)
         # plot velocity
         ax[1,0].plot((fvFit-f0Guess)/1e3, vFit, color=lineColor[loopType])
+        ax[1,0].axvline((f0-f0Guess)/1e3, color="r")
+        
         # plot amplitude
         ax[0,1].plot((fFit-f0Guess)/1e3, aFit, color=lineColor[loopType], label=loopType)
+        ax[0,1].axvline((f0-f0Guess)/1e3, color="r")
         ax[0,1].legend()
         # plot phase in degrees
         ax[1,1].plot((fFit-f0Guess)/1e3, pFit, color=lineColor[loopType])    
+        ax[1,1].axvline((f0-f0Guess)/1e3, color="r")
         plt.tight_layout()
         plt.savefig(pfn, dpi=300)
-
+        plt.close(fig)
+        
 def getFVAP(fa, ia, qa, iCenter=0, qCenter=0):
     df = fa[1]-fa[0]
     di = (ia[1:]-ia[:-1])/df
@@ -215,6 +230,7 @@ def loopFitter(fValues, iValues, qValues, verbose=0, nFit=2000):
     return retval
 
 if __name__ == "__main__":
+    print "Demonstrate how LoopFitter functions work"
     q = 789892.56
     f0 = 5.6930312E6 # frequency in kHz
     f0 = 5.0E6 # frequency in kHz
@@ -255,10 +271,154 @@ if __name__ == "__main__":
         loopFit = loopFitter(freqs, ia, qa)
         for ipar in range(10):
             fits[ipar,i] = loopFit['nsq'].x[ipar] - truth[ipar]
+    print "These should all be good:  mean of ",nToFit," results < 2 stds"
     for ipar in range(10):
         #print "ipar=",ipar, " mean=",fits[ipar,:].mean(), "std=",fits[ipar,:].std()
         mean = fits[ipar,:].mean()
         std = fits[ipar,:].std()
-        tpl = (tNames[ipar],truth[ipar],mean,std)
-        print "%6s truth=%11.3f deltaMean=%8.3f  std=%8.3f"%tpl
+        if abs(mean) < 2*abs(std):
+            result = "GOOD"
+        else:
+            result = "BAD"
+        tpl = (result,tNames[ipar],truth[ipar],mean,std)
+        print "%4s %6s truth=%11.3f deltaMean=%8.3f  std=%8.3f"%tpl
 
+def iqRot(i,q,thetaDeg):
+    ct = np.cos(np.radians(thetaDeg))
+    st = np.sin(np.radians(thetaDeg))
+    r = np.array([[ct,st],[-st,ct]])
+    x = r.dot(np.array([i,q]))
+    return x[0,:], x[1,:]
+
+def funcToMinimize(thetaDegrees, io0, qo0, io1, qo1):
+    io1r, qo1r = iqRot(io1,qo1,thetaDegrees[0])
+    d = ((io0-io1r)**2 + (qo0-qo1r)**2).sum()
+    #print "thetaDegrees[0],d",thetaDegrees[0],d
+    return d
+
+def findAndFitResonances(iqData, thresholdFraction=0.3, pfnRoot=None):
+    print "find and fit resonances:  pfnRoot =",pfnRoot
+    if pfnRoot is None:
+        peaksPfn = None
+    else:
+        peaksPfn = pfnRoot+"-findPeaks.png"
+    peaks = findPeaks(iqData, thresholdFraction, peaksPfn)
+    print "number of peaks found:  ",len(peaks['peaks'])
+    return peaks
+
+def findPeaks(iqData, thresholdFraction=0.3, pfn=None):
+    I = np.array(iqData['I'])
+    Q = np.array(iqData['Q'])
+    fo = np.array(iqData['freqOffsets'])
+    freqList = np.array(iqData['freqList'])
+    
+    print "I", I.shape
+    print "fo",fo.shape
+    print "freqList",freqList.shape
+    amps = np.empty(I.shape)
+    phases = np.empty(I.shape)
+    fas = np.empty(I.shape)
+    iRotated = I.copy()
+    qRotated = Q.copy()
+    for iFreq,freq in enumerate(freqList):
+        fa = freq + fo
+        fas[iFreq,:] =  fa
+        ia = I[iFreq, :]
+        qa = Q[iFreq, :]
+        ff,v,amps[iFreq,:],phases[iFreq,:] = getFVAP(fa,ia,qa)
+    relativeGains = np.ones(len(freqList))
+    for iFreq0 in range(len(freqList)-1):
+        iFreq1 = iFreq0+1
+        xMax = fas[iFreq0,:].max()
+        xMin = fas[iFreq1,:].min()
+        a0Mean = amps[iFreq0,fas[iFreq0,:]>=xMin].mean()
+        a1Mean = amps[iFreq1,fas[iFreq1,:]<=xMax].mean()
+        relativeGains[iFreq1] = a0Mean/a1Mean
+        amps[iFreq1,:] *= relativeGains[iFreq1]
+
+        # Rotate the i,q values for iFreq1 to match iFreq0 in the overlap
+        fa0 = fas[iFreq0,:]
+        fa1 = fas[iFreq1,:]
+        inda = np.searchsorted(fa0,fa1[0])
+        nOverlap = len(fa0)-inda
+        f0 = fa0[inda:]
+        f1 = fa1[:nOverlap]
+        io0 = iRotated[iFreq0, inda:]
+        qo0 = qRotated[iFreq0, inda:]
+        io1 = iRotated[iFreq1, :nOverlap]
+        qo1 = qRotated[iFreq1, :nOverlap]
+        res = minimize(funcToMinimize, np.array([180.0]), args=(io0, qo0, io1, qo1))
+        theta = res['x'][0]
+        if iFreq1 < 3:
+            print "iFreq0, iFreq1, theta",iFreq0, iFreq1, theta
+        ir1,qr1 = iqRot(I[iFreq1, :], Q[iFreq1, :], theta)
+        iRotated[iFreq1, :] = ir1
+        qRotated[iFreq1, :] = qr1
+    fMin = fas[0,0]
+    df = iqData['LO_step']
+    fMax = fas[-1,-1]+df
+    print fMin,df,fMax
+    nBins = int((fMax-fMin)/df)
+    print "nBins =",nBins
+    aSum = np.zeros(nBins)
+    fSum = np.zeros(nBins)
+    nSum = np.zeros(nBins)
+    iSum = np.zeros(nBins)
+    qSum = np.zeros(nBins)
+    for iFreq in range(len(freqList)):
+        for iSample,f in enumerate(fas[iFreq,:]):
+            iBin = int((f-fMin)/df)
+            nSum[iBin] += 1
+            fSum[iBin] += f
+            aSum[iBin] += amps[iFreq,iSample]
+            iSum[iBin] += iRotated[iFreq, iSample]
+            qSum[iBin] += qRotated[iFreq, iSample]
+    #plt.plot(nSum[-300:])
+    fAvg = fSum/nSum
+    aAvg = aSum/nSum
+    iAvg = iSum/nSum
+    qAvg = qSum/nSum
+    y = aAvg
+    y = (y.max()-y)
+    print "thresholdFraction",thresholdFraction,y
+    hMin = thresholdFraction * y.max()
+    peaks,_ = find_peaks(y, height=hMin)
+    if pfn is not None:
+        plt.plot(fAvg, aAvg)
+        plt.plot(fAvg[peaks], aAvg[peaks], 'rx')
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Amplitude (ADUs)")
+        plt.savefig(pfn, dpi=300)
+
+        plt.clf()
+        fig,ax = plt.subplots(2,1,sharex=True)
+        ax[0].plot(fAvg, iAvg)
+        ax[1].plot(fAvg, qAvg)
+        plt.savefig("junk.png",dpi=300)
+
+        plt.clf()
+        for iFreq in range(10):
+            plt.plot(I[iFreq, :],Q[iFreq, :], label=iFreq)
+        plt.legend()
+        plt.title("IQ")
+        plt.savefig("iq.png",dpi=300)
+        
+        plt.clf()
+        for iFreq in range(len(freqList)):
+            plt.plot(iRotated[iFreq, :], qRotated[iFreq, :], label=iFreq)
+        #plt.legend()
+        plt.title("IQ rotated")
+        plt.savefig("iqr.png",dpi=300)
+    di = 15
+    loopFits = []
+    for iPeak,peak in enumerate(peaks):
+        print "Now fit iPeak, peak =",iPeak, peak
+        ff = fAvg[peak-di:peak+di]
+        ii = iAvg[peak-di:peak+di]
+        qq = qAvg[peak-di:peak+di]
+        lf = loopFitter(ff, ii, qq)
+        loopFits.append(lf)
+        if pfn is not None:
+            ffn = "%s-%03d.png"%(os.path.splitext(pfn)[0],iPeak)
+            loopFitPlot(lf, pfn=ffn)
+    return {"peaks":peaks, "loopFits":loopFits}
