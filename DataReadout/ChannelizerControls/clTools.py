@@ -16,7 +16,9 @@ and if you make changes to code in this file:
 > reload(clTools)
 
 """
-import ConfigParser, datetime, dateutil, glob, hashlib, logging, os, pickle, sys, time, timeit,warnings, socket
+import ConfigParser, binascii, datetime, dateutil, glob, hashlib
+import logging, os, pickle, sys, time, timeit,warnings, socket
+from socket import inet_aton
 import numpy as np
 import scipy.special
 from scipy.signal import butter, filtfilt, find_peaks
@@ -850,4 +852,47 @@ def takeSomeData(rchc, nStep, baseName, channel=0, duration=10):
         if baseName is not None:
             pickle.dump(streamData, open(streamFileName,'wb'))
 
-    
+
+def setAllThresholds(rchc,threshold=0.0):
+    nfreqs = len(rchc.roachController.freqList)
+    for i in range(nfreqs):
+        rchc.roachController.setThreshByFreqChannel(threshold,i)
+
+
+def turnOffPhotonCapture(rchc):
+    """
+    Tells the roach to stop photon capture
+    """
+    roach = rchc.roachController
+    roach.fpga.write_int(rchc.config.get('properties','photonCapStart_reg'),0)
+
+def turnOnPhotonCapture(rchc):
+    """
+    Tells roaches to start photon capture
+
+    Have to be careful to set the registers in the correct order in case we are currently in phase capture mode
+    """
+
+    # set up ethernet parameters
+    hostIP = rchc.config.get('properties','hostIP')
+    dest_ip = binascii.hexlify(inet_aton(hostIP))
+    dest_ip = int(dest_ip,16)
+
+    roach = rchc.roachController
+    roach.fpga.write_int(rchc.config.get('properties','destIP_reg'),dest_ip)
+    roach.fpga.write_int(rchc.config.get('properties','photonPort_reg'),
+                         rchc.config.getint('properties','photonCapPort'))
+    roach.fpga.write_int(rchc.config.get('properties','wordsPerFrame_reg'),
+                         rchc.config.getint('properties','wordsPerFrame'))
+
+    # restart gbe
+    roach.fpga.write_int(rchc.config.get('properties','photonCapStart_reg'),0)
+    roach.fpga.write_int(rchc.config.get('properties','phaseDumpEn_reg'),0)
+    roach.fpga.write_int(rchc.config.get('properties','gbe64Rst_reg'),1)
+    time.sleep(.01)
+    roach.fpga.write_int(rchc.config.get('properties','gbe64Rst_reg'),0)
+
+    # Start photon caputure
+    roach.fpga.write_int(rchc.config.get('properties','photonCapStart_reg'),1)
+    print rchc.roachString,'Sending Photon Packets!'
+
