@@ -33,6 +33,12 @@
 
 // compile with gcc -o PacketMaster2 PacketMaster2.c -I. -lm -lrt
 
+/*
+  On a new system, create /mnt/ramdisk with this:
+  $ sudo mkdir /mnt/ramdisk
+  $ sudo mount -t tmpfs -o size=2048M tmpfs /mnt/ramdisk
+  $ sudo chmod 1777 /mnt/ramdisk
+ */
 struct datapacket {
     unsigned int baseline:17;
     unsigned int wvl:18;
@@ -82,15 +88,22 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
     char curroach;
     uint64_t swp,swp1;
 
+
     // pull out header information from the first packet
     swp = *((uint64_t *) (&packet[0]));
+    printf("ParsePacket:        swp=%lx\n",swp); fflush(stdout);
     swp1 = __bswap_64(swp);
+    printf("ParsePacket:       swp1=%lx\n",swp1); fflush(stdout);
     hdr = (struct hdrpacket *) (&swp1);             
 
     starttime = hdr->timestamp;
+    //printf("ParsePacket:  starttime=%lx\n",starttime); fflush(stdout);
     curframe = hdr->frame;
+    //printf("ParsePacket:   curframe=%x\n",curframe); fflush(stdout);
     curroach = hdr->roach;
+    //printf("ParsePacket:   curroach=%x\n",curroach); fflush(stdout);
         
+    printf("ParsePacket:  starttime=%ld curframe=%d curroach=%d\n",starttime,curframe,curroach); fflush(stdout);
     // check for missed frames and print an error if we got the wrong frame number
     if( frame[curroach] != curframe) {
         //printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
@@ -105,6 +118,11 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
        swp = *((uint64_t *) (&packet[i*8]));
        swp1 = __bswap_64(swp);
        data = (struct datapacket *) (&swp1);
+       if (i<4) {
+	 printf("ParsePacket:        swp=%lx\n",swp); fflush(stdout);
+	 printf("ParsePacket:  i=%3d  xcoord=%x ycoord=%x ts=%x wvl=%x baseline=%x\n",
+		i,data->xcoord,data->ycoord,data->timestamp,data->wvl,data->baseline); fflush(stdout);
+       }
        image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
        
        // debug
@@ -166,7 +184,7 @@ void Cuber()
           // we are in a new second, so write out image array and then zero out the array
           //printf("CUBER: Finised second %d.",olds);  fflush(stdout);
           
-          sprintf(outfile,"/mnt/ramdisk/%d.img",olds);
+          sprintf(outfile,"/mnt/ramdisk/%ld.img",olds);
           wp = fopen(outfile,"wb");
           //printf("WRITING: %d %d \n",image[25][39],image[25][54]);
           fwrite(image, sizeof(image[0][0]), XPIX * YPIX, wp);
@@ -174,7 +192,7 @@ void Cuber()
 
           olds = s;
           memset(image, 0, sizeof(image[0][0]) * XPIX * YPIX);    // zero out array
-          printf("CUBER: Parse rate = %d pkts/sec.  Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
+          printf("CUBER: Parse rate = %ld pkts/sec.  Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
           pcount=0;
           
           // spawn Bin2PNG to make png file
@@ -184,8 +202,8 @@ void Cuber()
        
        // not a new second, so read in new data and parse it          
 	   br = read(cwr, data, 1024*sizeof(char));
-	    
        if( br != -1) {
+	 printf("Cuber:  read br=%d\n",br); fflush(stdout);
           //if( br > 0 ) printf("br = %d | oldbr = %d\n",br,oldbr);fflush(stdout);
                  
           // we may be in the middle of a packet so put together a full packet from old data and new data
@@ -214,7 +232,7 @@ void Cuber()
                                       
              //printf("%d-%d\t",i,hdr->start); fflush(stdout);
              if (hdr->start == 0b11111111) {        // found new packet header!
-                //printf("Found new packet header at %d.  roach=%d, frame=%d\n",i,hdr->roach,hdr->frame);
+                printf("Cuber:  Found new packet header at %d.  roach=%d, frame=%d\n",i,hdr->roach,hdr->frame);
        
                 if( i*8 > 104*8 ) { 
                    printf("Error - packet too long: %d\n",i);
@@ -296,6 +314,7 @@ void Writer()
     printf(" Writer: My parent's PID is %d\n", getppid());
 
     wwr = open("/mnt/ramdisk/WriterPipe.pip", O_RDONLY | O_NDELAY);
+    printf(" Writer: wwr opened\n"); fflush(stdout);
     //wwr = open("/mnt/ramdisk/WriterPipe.pip", O_RDONLY );
 
     //  Write looks for a file on /mnt/ramdisk named "START" which contains the write path.  
@@ -308,8 +327,9 @@ void Writer()
     // mode = 2 :  continous writing mode, watch for "STOP" or "QUIT" files
     // mode = 3 :  QUIT file detected, exit
 
+    
+    printf("Writer:  here we go with mode=%d\n",mode);fflush(stdout);
     while (mode != 3) {
-
        // keep the pipe clean!       
        if( mode == 0 ) { 
 	   br = read(wwr, data, 1024*sizeof(char)); 
@@ -332,7 +352,7 @@ void Writer()
           clock_gettime(CLOCK_REALTIME, &spec);   
           s  = spec.tv_sec;
           olds = s;
-          sprintf(fname,"%s%d.bin",path,s);
+          sprintf(fname,"%s%ld.bin",path,s);
           printf("Writing to %s\n",fname);
           wp = fopen(fname,"wb");
           mode = 2;
@@ -356,7 +376,7 @@ void Writer()
 
              if( s - olds >= 1 ) {
                  fclose(wp);
-                 sprintf(fname,"%s/%d.bin",path,s);
+                 sprintf(fname,"%s/%ld.bin",path,s);
                  printf("WRITER: Writing to %s, rate = %ld MBytes/sec\n",fname,outcount/1000000);
                  wp = fopen(fname,"wb");
                  olds = s;
@@ -367,7 +387,9 @@ void Writer()
              br = read(wwr, data, 1024*sizeof(char));
              
              if( br > 0 ) {  
-                //printf("br = %d\n",br);
+                printf("Writer:  br = %d\n",br);
+		printf("Writer:   data[:3]=%2x %2x %2x %2x\n",data[0],data[1],data[2],data[3]);fflush(stdout);;
+		printf("Writer:  data[-3:]=%2x %2x %2x %2x\n",data[br-4],data[br-3],data[br-2],data[br-1]);fflush(stdout);
                 fwrite( data, 1, br, wp);
                 outcount += br;
              }
@@ -414,14 +436,18 @@ void Reader()
   ssize_t nBytesReceived = 0;
   ssize_t nTotalBytes = 0;
   int cwrp, wwr;
+  FILE *wwrDebug;
+  int nWwrDebug = 0;
   int n1,n2;
   
-  printf("READER: Connecting to Socket!\n"); fflush(stdout);
+  printf("READER: Connecting to Socket!\n");  fflush(stdout);
 
   // open up FIFOs for writing in non-blocking mode
 
   while( (cwrp = open("/mnt/ramdisk/CuberPipe.pip", O_WRONLY | O_NDELAY)) == -1 );
   printf("READER: cwrp = %d",cwrp);
+
+  wwrDebug = fopen("/mnt/ramdisk/wwrDebug.bin","wb");
   
   while( (wwr = open("/mnt/ramdisk/WriterPipe.pip", O_WRONLY | O_NDELAY)) == -1);
   printf("READER: wwr = %d",wwr);
@@ -499,6 +525,14 @@ void Reader()
     //memmove(buf2,buf,BUFLEN);
     
     n1=write(wwr, buf, nBytesReceived);
+    printf("Reader:  written to wwr:  buf[:3]=%2x %2x %2x %2x\n",buf[0],buf[1],buf[2],buf[3]);fflush(stdout);
+
+    if (nWwrDebug < 50) {
+      fwrite(buf, nBytesReceived, 1, wwrDebug);
+      printf("Reader:  ===========>wrote %ld to wwrDebug nWwrDebug=%d\n",nBytesReceived,nWwrDebug);
+    }    
+    nWwrDebug++;
+      
     if( n1 == -1) perror("write wwr");
     n2=write(cwrp, buf, nBytesReceived);
     if( n2 == -1) perror("write cwr");
@@ -526,10 +560,11 @@ void Reader()
   }
 
   //fclose(dump_file);
-  printf("received %d frames, %d bytes\n",nFrames,nTotalBytes);
+  printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
   close(s);
   close(wwr);
   close(cwrp);
+  fclose(wwrDebug);
   return;
 
 }
