@@ -33,6 +33,9 @@ import RoachConnection
 reload(RoachConnection)
 import WritePhaseData
 reload(WritePhaseData)
+import ReceiveFPGAStream
+reload(ReceiveFPGAStream)
+
 def init(roachNumber, configFile):
     """ 
     Initialize the Roach board after powering up:
@@ -896,3 +899,26 @@ def turnOnPhotonCapture(rchc):
     roach.fpga.write_int(rchc.config.get('properties','photonCapStart_reg'),1)
     print rchc.roachString,'Sending Photon Packets!'
 
+def fpgaStreamToPkl(baseFileName='fpgaStream',nFrames=1000):
+    rfs = ReceiveFPGAStream.ReceiveFPGAStream()
+    dtn = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    pfn = "%s-%s.pkl"%(baseFileName,dtn)
+    with open(pfn,'wb') as pickleHandle:
+        for i in range(nFrames):
+            if i%100: print "%d/%d"%(i,nFrames)
+            data = rfs.read()
+            rv = rfs.unpack(data)
+            pickle.dump(rv,pickleHandle)
+    return pfn
+
+def phasesIntToDouble(phasesIn, nBitsPerPhase=12, binPtPhase=9):
+    # Logic copied from Roach2Controls.py
+    phases = np.copy(phasesIn) 
+    bitmask = int('1'*nBitsPerPhase,2)
+    phases = phases & bitmask      
+    signBits = np.array(phases / (2**(nBitsPerPhase-1)),dtype=np.bool)
+    phases[signBits] = ((~phases[signBits]) & bitmask)+1 # Deal with twos complement
+    phases = np.array(phases,dtype=np.double)
+    phases[signBits] = -phases[signBits]
+    phases /= 2**binPtPhase
+    return phases
