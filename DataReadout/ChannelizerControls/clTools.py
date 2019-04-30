@@ -861,6 +861,20 @@ def setAllThresholds(rchc,threshold=0.0):
     for i in range(nfreqs):
         rchc.roachController.setThreshByFreqChannel(threshold,i)
 
+def loadBeammapCoords(rchc, xCoordOffset=10, yCoordConstant=12):
+    """
+                beammapDict contains:
+                'freqCh' : list of freqCh of resonators.    (index in frequency list)
+                'xCoord' : list of x Coordinates
+                'yCoord' : list of y Coords
+    """
+    beammapDict = {'freqCh':[], 'xCoord':[], 'yCoord':[]}
+    for iFreq in range(len(rchc.roachController.freqList)):
+        beammapDict['freqCh'].append(iFreq)
+        beammapDict['xCoord'].append(iFreq+xCoordOffset)
+        beammapDict['yCoord'].append(yCoordConstant)
+    rchc.roachController.loadBeammapCoords(beammapDict)
+    return beammapDict
 
 def turnOffPhotonCapture(rchc):
     """
@@ -899,18 +913,61 @@ def turnOnPhotonCapture(rchc):
     roach.fpga.write_int(rchc.config.get('properties','photonCapStart_reg'),1)
     print rchc.roachString,'Sending Photon Packets!'
 
-def fpgaStreamToPkl(baseFileName='fpgaStream',nFrames=1000):
+def fpgaStreamToPkl(baseFileName='fpgaStream',nFrames=1000, unpack=True):
     rfs = ReceiveFPGAStream.ReceiveFPGAStream()
     dtn = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    pfn = "%s-%s.pkl"%(baseFileName,dtn)
-    with open(pfn,'wb') as pickleHandle:
-        for i in range(nFrames):
-            if i%100: print "%d/%d"%(i,nFrames)
-            data = rfs.read()
+    if baseFileName is not None:
+        pfn = "%s-%s-%d.pkl"%(baseFileName,dtn,unpack)
+        pickleHandle = open(pfn, 'wb')
+    else:
+        pfn = None
+        pickleHandle = None
+    dt = 0
+    for i in range(nFrames):
+        print "%d/%d"%(i,nFrames)
+        data = rfs.read()
+        if unpack:
             rv = rfs.unpack(data)
+        else:
+            rv = data
+        if pickleHandle is not None:
             pickle.dump(rv,pickleHandle)
+        else:
+            pass
     return pfn
 
+def fpgaToScreen(nFrames=1, npToPrint=0, readValid=False, frameHeader=True ):
+    rfs = ReceiveFPGAStream.ReceiveFPGAStream()
+    tPrev = None
+    for i in range(nFrames):
+        if readValid: print "%d/%d"%(i,nFrames),
+        data = rfs.read()
+        rv = rfs.unpack(data)
+        if readValid: print rv['valid']
+        if rv['valid']:
+            # Keys are: ['frame', 'packets', 'tag', 'starttime', 'roach', 'valid']
+            p = rv['packets']
+            np = rv['packets'].shape[0]
+            if tPrev is not None:
+                dt = rv['starttime'] - tPrev
+            else:
+                dt = -1
+            tPrev = rv['starttime']
+            if frameHeader:
+                print "frame=%5d starttime=%d dt=%5d roach=%d np=%d nBytesRead=%d"%(rv['frame'],rv['starttime'],dt,rv['roach'],np,len(data))
+            for ip in range(npToPrint):
+                try:
+                    row = p[ip,:]
+                    usec = row[5]
+                    xc = row[4]
+                    yc = row[3]
+                    ts = row[2]
+                    wvl = row[1]
+                    bse = row[0]
+                    print "ip=%3d   xc=%2d   yc=%2d   ts=%3d   usec=%5d  baseline=%d"%(ip,xc,yc,ts,usec, bse)
+                except:
+                    print "out of range"
+        
 def phasesIntToDouble(phasesIn, nBitsPerPhase=12, binPtPhase=9):
     # Logic copied from Roach2Controls.py
     phases = np.copy(phasesIn) 
@@ -922,3 +979,7 @@ def phasesIntToDouble(phasesIn, nBitsPerPhase=12, binPtPhase=9):
     phases[signBits] = -phases[signBits]
     phases /= 2**binPtPhase
     return phases
+
+def setMaxCountRate(rchc, maxCountRate=10000):
+    rchc.roachController.setMaxCountRate(maxCountRate)
+    
