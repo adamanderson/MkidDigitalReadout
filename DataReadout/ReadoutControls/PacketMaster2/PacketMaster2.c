@@ -91,9 +91,9 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
 
     // pull out header information from the first packet
     swp = *((uint64_t *) (&packet[0]));
-    printf("ParsePacket:        swp=%lx\n",swp); fflush(stdout);
+    //printf("ParsePacket:        swp=%lx\n",swp); fflush(stdout);
     swp1 = __bswap_64(swp);
-    printf("ParsePacket:       swp1=%lx\n",swp1); fflush(stdout);
+    //printf("ParsePacket:       swp1=%lx\n",swp1); fflush(stdout);
     hdr = (struct hdrpacket *) (&swp1);             
 
     starttime = hdr->timestamp;
@@ -118,11 +118,11 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
        swp = *((uint64_t *) (&packet[i*8]));
        swp1 = __bswap_64(swp);
        data = (struct datapacket *) (&swp1);
-       if (i<4) {
-	 printf("ParsePacket:        swp=%lx\n",swp); fflush(stdout);
-	 printf("ParsePacket:  i=%3d  xcoord=%x ycoord=%x ts=%x wvl=%x baseline=%x\n",
-		i,data->xcoord,data->ycoord,data->timestamp,data->wvl,data->baseline); fflush(stdout);
-       }
+       //if (i<4) {
+	 //printf("ParsePacket:        swp=%lx\n",swp); fflush(stdout);
+	 //printf("ParsePacket:  i=%3d  xcoord=%x ycoord=%x ts=%x wvl=%x baseline=%x\n",
+	 //	i,data->xcoord,data->ycoord,data->timestamp,data->wvl,data->baseline); fflush(stdout);
+       //}
        image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
        
        // debug
