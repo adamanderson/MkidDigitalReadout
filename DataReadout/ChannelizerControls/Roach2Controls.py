@@ -94,6 +94,7 @@ import randomPhases
 from lib.binTools import castBin
 from lib.readDict import readDict
 #from initialBeammap import xyPack,xyUnpack
+import pdb
 
 class Roach2Controls:
 
@@ -821,11 +822,16 @@ class Roach2Controls:
         Must initialize attenuator SPI connection first
         INPUTS:
             attenID 
-                1 - RF Upconverter path
-                2 - RF Upconverter path
-                3 - RF Downconverter path
+                1 - RF Upconverter path (DAC)
+                2 - RF Upconverter path (DAC)
+                3 - RF Downconverter path (ADC)
+                4 - RF Downconverter path (ADC)
             attenVal - attenuation between 0 and 31.75 dB. Rounded to be a multiple of 0.25 dB
         """
+        # check that attenID is valid
+        if attenID not in [1,2,3,4]:
+            raise ValueError('Invalid attenuator ID. Must be 1, 2, 3, or 4.')
+            
         if attenValInput > 31.75 or attenValInput<0:
             raise ValueError("Attenuation must be between 0 and 31.75 but attenValInput =%s"%str(attenValInput))
         
