@@ -934,7 +934,7 @@ def turnOnPhotonCapture(rchc):
     print rchc.roachString,'Sending Photon Packets!'
 
 def fpgaCheckForMissingFrames(nFrames=100000, reportStride=10000,
-                              frameOnly=False, port='/mnt/ramdisk'):
+                              frameOnly=False, port='/mnt/ramdisk/frames'):
     nInvalid = 0
     nBadDelta = 0
     nGoot = 0
