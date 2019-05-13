@@ -861,6 +861,26 @@ def setAllThresholds(rchc,threshold=0.0):
     for i in range(nfreqs):
         rchc.roachController.setThreshByFreqChannel(threshold,i)
 
+def setOneThreshold(rchc,iChannel, threshold=0.0):
+    rchc.roachController.setThreshByFreqChannel(threshold,iChannel)
+
+def setAllChannelAndStreamThresholds(rchc, threshold):
+    params = rchc.roachController.params
+    nStreams = params['nChannels']/params['nChannelsPerStream']
+    for iStream in range(nStreams):
+        for iChannel in range(params['nChannelsPerStream']):
+            rchc.roachController.setThresh(threshold, iChannel, iStream)
+            
+def clearAllBeammapCoords(rchc, xCoord=999, yCoord=888):
+    beammapDict = {'freqCh':[], 'xCoord':[], 'yCoord':[]}
+    for iFreq in range(1024):
+        beammapDict['freqCh'].append(iFreq)
+        beammapDict['xCoord'].append(xCoord)
+        beammapDict['yCoord'].append(yCoord)
+    rchc.roachController.loadBeammapCoords(beammapDict)
+    return beammapDict
+        
+
 def loadBeammapCoords(rchc, xCoordOffset=10, yCoordConstant=12):
     """
                 beammapDict contains:
@@ -913,6 +933,43 @@ def turnOnPhotonCapture(rchc):
     roach.fpga.write_int(rchc.config.get('properties','photonCapStart_reg'),1)
     print rchc.roachString,'Sending Photon Packets!'
 
+def fpgaCheckForMissingFrames(nFrames=100000, reportStride=10000,
+                              frameOnly=False, port='/mnt/ramdisk'):
+    nInvalid = 0
+    nBadDelta = 0
+    nGoot = 0
+    rfs = ReceiveFPGAStream.ReceiveFPGAStream(port=port)
+    dtn = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    dFrame = np.ones(4096)
+    dFrame[0] = -4095
+    prevFrame = None
+    nBytes = 0
+    t0 = datetime.datetime.now()
+    for i in range(nFrames):
+        data = rfs.read()
+        rv = rfs.unpack(data, frameOnly=False)
+        if rv['valid']:
+            nBytes += len(data)
+            thisFrame = rv['frame']
+            if prevFrame is not None:
+                delta = thisFrame-prevFrame
+                if delta != dFrame[thisFrame]:
+                    nBadDelta += 1
+                    #print "thisFrame, bad delta is ",thisFrame,delta
+            prevFrame = thisFrame
+        else:
+            print "INVALID FRAME"
+            nInvalid += 1
+            rfs.fastForward()
+        mbps = nBytes/(1e6*(datetime.datetime.now()-t0).total_seconds())
+        #mbps = -1
+        if i%reportStride == 0:
+            print "%s i=%8d   nInvalid=%3d   nBadDelta=%3d  mbps=%f"%(datetime.datetime.now(),i,nInvalid,nBadDelta,mbps)
+            lag = rfs.whereAmI()
+            if lag is not None:
+                print "lag =",lag
+    print "%s i=%8d   nInvalid=%3d   nBadDelta=%3d  mbps=%f"%(datetime.datetime.now(),i,nInvalid,nBadDelta,mbps)
+    
 def fpgaStreamToPkl(baseFileName='fpgaStream',nFrames=1000, unpack=True):
     rfs = ReceiveFPGAStream.ReceiveFPGAStream()
     dtn = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -936,8 +993,47 @@ def fpgaStreamToPkl(baseFileName='fpgaStream',nFrames=1000, unpack=True):
             pass
     return pfn
 
-def fpgaToScreen(nFrames=1, npToPrint=0, readValid=False, frameHeader=True ):
-    rfs = ReceiveFPGAStream.ReceiveFPGAStream()
+def fpgaSyncToScreen(nFrames=1, port=50000):
+    rfs = ReceiveFPGAStream.ReceiveFPGAStream(port=port)
+    tPrev = None
+    lastSyncTime = None
+    for i in range(nFrames):
+        #if readValid: print "%d/%d"%(i,nFrames),
+        data = rfs.read()
+        rv = rfs.unpack(data)
+        if rv['valid']:
+            # Keys are: ['frame', 'packets', 'tag', 'starttime', 'roach', 'valid']
+            p = rv['packets']
+            np = rv['packets'].shape[0]
+            if tPrev is not None:
+                dt = rv['starttime'] - tPrev
+            else:
+                dt = -1
+                starttime0 = rv['starttime']
+            tPrev = rv['starttime']
+            for ip in range(np):
+                try:
+                    row = p[ip,:]
+                    usec = row[5]
+                    xc = row[4]
+                    yc = row[3]
+                    ts = row[2]
+                    wvl = row[1]
+                    bse = row[0]
+                    if ts == 511 and xc < 511:
+                        syncTime = (rv['starttime']-starttime0)
+                        #print "xc=%3d   time=%8d"%(xc,syncTime)
+                        if lastSyncTime is not None:
+                            if syncTime > lastSyncTime:
+                                deltaSyncTime = syncTime-lastSyncTime
+                                deltaSyncSec = deltaSyncTime*0.5e-3
+                                print "syncTime=%8d deltaSyncTime = %7.5f seconds"%(syncTime,deltaSyncSec)
+                        lastSyncTime = syncTime
+                except:
+                    print "out of range"
+    
+def fpgaToScreen(nFrames=1, npToPrintMax=0, readValid=False, frameHeader=True, tsThreshold=-1, port='/mnt/ramdisk' ):
+    rfs = ReceiveFPGAStream.ReceiveFPGAStream(port=port)
     tPrev = None
     for i in range(nFrames):
         if readValid: print "%d/%d"%(i,nFrames),
@@ -955,6 +1051,7 @@ def fpgaToScreen(nFrames=1, npToPrint=0, readValid=False, frameHeader=True ):
             tPrev = rv['starttime']
             if frameHeader:
                 print "frame=%5d starttime=%d dt=%5d roach=%d np=%d nBytesRead=%d"%(rv['frame'],rv['starttime'],dt,rv['roach'],np,len(data))
+            npToPrint = min(np, npToPrintMax)
             for ip in range(npToPrint):
                 try:
                     row = p[ip,:]
@@ -964,7 +1061,8 @@ def fpgaToScreen(nFrames=1, npToPrint=0, readValid=False, frameHeader=True ):
                     ts = row[2]
                     wvl = row[1]
                     bse = row[0]
-                    print "ip=%3d   xc=%2d   yc=%2d   ts=%3d   usec=%5d  baseline=%d"%(ip,xc,yc,ts,usec, bse)
+                    if ts > tsThreshold:
+                        print "ip=%3d   xc=%3d   yc=%3d   ts=%3d   usec=%5d  baseline=%6d wvl=%d"%(ip,xc,yc,ts,usec, bse, wvl)
                 except:
                     print "out of range"
         

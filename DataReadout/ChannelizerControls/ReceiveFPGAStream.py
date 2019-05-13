@@ -1,28 +1,116 @@
-import pickle, socket, struct
+import os, pickle, socket, struct, time
 import numpy as np
 class ReceiveFPGAStream():
-    packetLabels = ['baseline','wvl','timestamp','ycoord','xcoord']
-    def __init__(self,port=50000,host='',timeoutSeconds=3):
+    packetLabels = ['baseline','wvl','timestamp','ycoord','xcoord','usec']
+    def __init__(self,port=50000,host='',timeoutSeconds=3, iSecond=None):
         self.port = port
-        self.host = ''
         self.timeoutSeconds = timeoutSeconds
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        self.s.settimeout(self.timeoutSeconds)
-        self.s.bind((self.host,self.port))
-        print "done initializing socket"
-        #self.s.listen(1)
-        #print "after call s.listen(1)"
-        #self.conn, self.addr = self.s.accept()
-        #print "after accept:  conn,addr =",self.conn, self.addr
-        
-    def read(self):
-        try:
-            data = self.s.recv(1024)
-        except socket.timeout:
-            data = None
-        return data
+        if self.port == "/mnt/ramdisk/frame":
+            self.fromSocket = False
+            self.iFrame = None
+        elif self.port == "/mnt/ramdisk/frames":
+            self.fromSocket = False
+            self.iSecond = iSecond
+            self.i0 = None
+        else:
+            self.fromSocket = True
+            self.s = socket.socket(socket.AF_INET,
+                                   socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            self.s.settimeout(self.timeoutSeconds)
+            bufferSize = 335544320
+            self.s.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,
+                              bufferSize)
+            self.s.bind(('',port))
 
-    def unpack(self,d):
+    def read(self):
+        if self.fromSocket:
+            try:
+                data = self.s.recv(4096)
+            except socket.timeout:
+                data = None
+        else:
+            if self.port == "/mnt/ramdisk/frame":
+                if self.iFrame is None:
+                    self.fastForward()
+                data = self.readFromRamdisk()
+                self.iFrame += 1
+            else:
+                if self.iSecond == None:
+                    self.fastForward()
+                    self.iRecord = None
+                if self.i0 == None:
+                    self.loadRecordsFromFrames()
+                if self.records is None:
+                    self.i0 = None
+                    return None
+                if self.i0 >= len(self.records):
+                    self.loadRecordsFromFrames()
+                if self.records is not None:
+                    # The next two bytes are the length of the next frame
+                    nbytes = struct.unpack('<I',
+                                           self.records[self.i0:self.i0+4])[0]
+                    i1 = self.i0+8+nbytes
+                    data = self.records[self.i0+8:i1]
+                    self.i0 = i1
+                else:
+                    data = None
+        return data
+    def loadRecordsFromFrames(self):
+        self.i0 = 0
+        self.records = self.readFromRamdisk()
+        if self.records is not None:
+            self.iSecond += 1
+    def whereAmI(self):
+        if not self.fromSocket:
+            fn = max([ f for f in os.listdir('/mnt/ramdisk') if f.startswith('frame')])
+            if self.port.endswith("frame"):
+                iFrameNewest = int(fn[5:14],10)
+                lag = iFrameNewest - self.iFrame
+            else:
+                iSecondNewest = int(fn[6:16],10)
+                lag = iSecondNewest - self.iSecond
+                print "hello from whereAmI:  iSecondNewest=",iSecondNewest, "self.iSecond=",self.iSecond
+        else:
+            lag = 0
+        return lag
+        
+    def readFromRamdisk(self, iFrameOrSecond=None):
+        if self.port == "/mnt/ramdisk/frame":
+            if iFrameOrSecond is None:
+                iFrameOrSecond = self.iFrame
+            fn = "/mnt/ramdisk/frame%09d.bin"%iFrameOrSecond
+            # wait for the file to appear
+            for i in range(timeoutSeconds):
+                if os.path.isfile(fn):
+                    with open(fn, mode='rb') as file:
+                        data = file.read()
+                    return data
+                time.sleep(1)
+            # timed out
+            return None
+        else:
+            if iFrameOrSecond is None:
+                iFrameOrSecond = self.iSecond
+            fn = "/mnt/ramdisk/frames%10d.bin"%iFrameOrSecond
+            # wait for the file to appear
+            for i in range(self.timeoutSeconds):
+                if os.path.isfile(fn):
+                    with open(fn, mode='rb') as file:
+                        data = file.read()
+                    return data
+                time.sleep(1)
+            # timed out
+            return None
+            
+    def fastForward(self):
+        fn = max([ f for f in os.listdir('/mnt/ramdisk') if f.startswith('frame')])
+        if self.port.endswith("frame"):
+            self.iFrame = int(fn[5:14],10)
+        else:
+            self.iSecond = int(fn[6:16],10)
+            
+    @staticmethod
+    def unpack(d, frameOnly=False):
         """
         Return a dictionary of tag, roach, frame, starttime, and packets.
 
@@ -62,46 +150,91 @@ struct datapacket {
 }__attribute__((packed));;
 
 """
+        if d is None:
+            rv = {"valid":False}
+            return rv
         
         if ord(d[0]) != 255:
             raise ValueError("It should be 255 but ord(data[0])=%d"%ord(data[0]))
         a = d[:8]
         #ss = struct.unpack('<Q',a)[0] 
         ss = struct.unpack('>Q',a)[0] # this byte order worked on April 22, 2019
-        tag = (ss & 0xFF00000000000000) >> 56
-        roach = (ss & 0xFF000000000000) >> 48
-        frame = ((ss & 0xFFF000000000) >> 36 )
-        starttime = ss & 0xFFFFFFFFF
-        retval = {"tag":tag,"roach":roach, "frame":frame, "starttime":starttime}
-        nPacket = (len(d)/8) - 1
-        packets = np.empty((nPacket,5),dtype=np.int32)
-        retval['packets'] = packets
-        for iPacket in range(0,100):
-            i1 = 8*(iPacket+1)
-            a = d[i1:i1+8]
-            ss = struct.unpack('>Q',a)[0]
-            baseline = ss & ((2**17)-1)
-            ss = ss >> 17
-            wvl = ss & ((2**18)-1)
-            ss = ss >> 18
-            timestamp = ss & ((2**9)-1)
-            ss = ss >> 9
-            ycoord = ss & ((2**10)-1)
-            ss = ss >> 10
-            xcoord = ss & ((2**10)-1)
-            l = [baseline,wvl,timestamp,ycoord,xcoord]
-            packets[iPacket,:] = np.array(l,dtype=np.uint32)
+        frame    = (ss & 0x0000FFF000000000) >> 36
+        if frameOnly:
+            retval = {"frame":frame, "valid":True}
+        else:
+            tag      = (ss & 0xFF00000000000000) >> 56
+            roach    = (ss & 0x00FF000000000000) >> 48
+            starttime = ss & 0x0000000FFFFFFFFF
+            retval = {"tag":tag,"roach":roach, "frame":frame,
+                      "starttime":starttime, "valid":True}
+            nPacket = (len(d)/8) - 1
+            packets = np.empty((nPacket,6),dtype=np.int32)
+            retval['packets'] = packets
+
+            timestamp0 = None
+            for iPacket in range(0,nPacket):
+                i1 = 8*(iPacket+1)
+                a = d[i1:i1+8]
+                ss = struct.unpack('>Q',a)[0]
+                baseline = ss & ((2**17)-1)
+                ss = ss >> 17
+                wvl = ss & ((2**18)-1)
+                ss = ss >> 18
+                timestamp = ss & ((2**9)-1)
+                if timestamp0 is None:
+                    timestamp0 = timestamp
+                    timestampWrapOffset = 0
+                    timestampPrevious = timestamp
+                if timestampPrevious > timestamp:
+                    timestampWrapOffset += 500 # Based on looking at firmware, this is not 512.
+                #usec = timestamp - timestamp0 + timestampWrapOffset
+                usec = timestamp + timestampWrapOffset
+                timestampPrevious = timestamp
+                ss = ss >> 9
+                ycoord = ss & ((2**10)-1)
+                ss = ss >> 10
+                xcoord = ss & ((2**10)-1)
+                l = [baseline,wvl,timestamp,ycoord,xcoord,usec]
+                packets[iPacket,:] = np.array(l,dtype=np.uint32)
         return retval
-        
+
+def test(fn):
+    print "test",fn
+    with open(fn,'rb') as f:
+        d = f.read()
+    f.close()
+
+    
+    ind = 0
+    i0s = []
+    i1s = []
+
+    while True:
+        try:
+            nbytes = ord(d[ind])+256*ord(d[ind+1])
+            nbytes = struct.unpack('<I', d[ind:ind+4])[0]
+            print "i, nbytes = ",len(i0s),nbytes
+            i0s.append(ind+8)
+            i1s.append(ind+8+nbytes)
+            ind += 8 + nbytes
+        except IndexError:
+            break
+    for i0,i1 in zip(i0s,i1s):
+        rv = ReceiveFPGAStream.unpack(d[i0:i1])
+        print rv['roach'],rv['frame']
+    return d
+
 if __name__ == "__main__":
-    rfs = ReceiveFPGAStream()
-    for i in range(3000):
+    rfs = ReceiveFPGAStream("/mnt/ramdisk/frames", iSecond=1557501757)
+    #rfs = ReceiveFPGAStream("/mnt/ramdisk/frames")
+    for i in range(10000):
         data = rfs.read()
         if data is None:
-            print "timedout"
+            print i,"timedout"
         else:
             rv = rfs.unpack(data)
-            print rv['frame']
-            for i in range(3):
-                baseline,wvl,timestamp,ycoord,xcoord = rv['packets'][i]
-                print i, "wvl=",wvl, "timestamp=",timestamp
+            print rv['frame'],
+            #for i in range(3):
+            #    baseline,wvl,timestamp,ycoord,xcoord = rv['packets'][i]
+            #    print i, "wvl=",wvl, "timestamp=",timestamp
