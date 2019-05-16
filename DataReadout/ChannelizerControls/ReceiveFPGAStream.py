@@ -1,4 +1,5 @@
-import os, pickle, socket, struct, time
+import clTools
+import datetime, os, pickle, socket, struct, time
 import numpy as np
 class ReceiveFPGAStream():
     packetLabels = ['baseline','wvl','timestamp','ycoord','xcoord','usec']
@@ -198,6 +199,50 @@ struct datapacket {
                 l = [baseline,wvl,timestamp,ycoord,xcoord,usec]
                 packets[iPacket,:] = np.array(l,dtype=np.uint32)
         return retval
+    @staticmethod
+    def unpackOneFramesFile(ffn):
+        with open(ffn,'rb') as file:
+            data = file.read()
+        i0 = 0
+        times = {}
+        phases = {}
+        baselines = {}
+        while(i0 < len(data)):
+            nbytes = struct.unpack("<I",data[i0:i0+4])[0]
+            i0 += 8
+            i1 = i0+nbytes
+            packet = data[i0:i1]
+            unpacked = ReceiveFPGAStream.unpack(packet)
+            p = unpacked['packets']
+            nPhotons = p.shape[0]
+            t0Frame = unpacked['starttime']*0.5e-3
+            for iPhoton in range(nPhotons):
+                channel = p[iPhoton,4]
+                if channel < 511:
+                    if channel not in times:
+                        times[channel] = []
+                        phases[channel] = []
+                        baselines[channel] = []
+                    usec = 1e-6*p[iPhoton,2]
+                    seconds = t0Frame + usec
+                    times[channel].append(seconds)
+                    # we are using the "wvl" to report phase
+                    phase = p[iPhoton,1] 
+                    phases[channel].append(phase)
+                    baseline = p[iPhoton,0]
+                    baselines[channel].append(baseline)
+            i0 = i1
+        for key in times.keys():
+            times[key] = np.array(times[key])
+            baselines[key] = np.array(baselines[key])
+            baselines[key] = clTools.phasesIntToDouble(baselines[key],
+                                                       nBitsPerPhase=17,
+                                                       binPtPhase=14)
+            phases[key] = np.array(phases[key])
+            phases[key] = clTools.phasesIntToDouble(phases[key],
+                                                    nBitsPerPhase=18,
+                                                    binPtPhase=15)
+        return {"ffn":ffn,"times":times,"baselines":baselines,"phases":phases}
 
 def test(fn):
     print "test",fn
@@ -226,15 +271,5 @@ def test(fn):
     return d
 
 if __name__ == "__main__":
-    rfs = ReceiveFPGAStream("/mnt/ramdisk/frames", iSecond=1557501757)
-    #rfs = ReceiveFPGAStream("/mnt/ramdisk/frames")
-    for i in range(10000):
-        data = rfs.read()
-        if data is None:
-            print i,"timedout"
-        else:
-            rv = rfs.unpack(data)
-            print rv['frame'],
-            #for i in range(3):
-            #    baseline,wvl,timestamp,ycoord,xcoord = rv['packets'][i]
-            #    print i, "wvl=",wvl, "timestamp=",timestamp
+    ffn = "frames1558032100.bin"
+    rv = ReceiveFPGAStream.unpackOneFramesFile(ffn)
