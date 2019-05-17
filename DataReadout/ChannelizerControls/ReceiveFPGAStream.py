@@ -6,6 +6,7 @@ class ReceiveFPGAStream():
     def __init__(self,port=50000,host='',timeoutSeconds=3, iSecond=None):
         self.port = port
         self.timeoutSeconds = timeoutSeconds
+        print "ReceiveFPGAStream.__init__:  port=",port
         if self.port == "/mnt/ramdisk/frame":
             self.fromSocket = False
             self.iFrame = None
@@ -91,9 +92,15 @@ class ReceiveFPGAStream():
             return None
         else:
             if iFrameOrSecond is None:
+                if self.iSecond is None:
+                    # nothing found on /mnt/ramdisk
+                    time.sleep(self.timeoutSeconds)
+                    return None
                 iFrameOrSecond = self.iSecond
+            
             fn = "/mnt/ramdisk/frames%10d.bin"%iFrameOrSecond
             # wait for the file to appear
+            print "ReceiveFPGAStream:  wait for fn=",fn
             for i in range(self.timeoutSeconds):
                 if os.path.isfile(fn):
                     with open(fn, mode='rb') as file:
@@ -104,11 +111,16 @@ class ReceiveFPGAStream():
             return None
             
     def fastForward(self):
-        fn = max([ f for f in os.listdir('/mnt/ramdisk') if f.startswith('frame')])
         if self.port.endswith("frame"):
-            self.iFrame = int(fn[5:14],10)
+            fileList = [ f for f in os.listdir('/mnt/ramdisk') if f.startswith('frame')]
+            fn = max(fileList)
+            if len(fileList) > 0:
+                self.iFrame = int(fn[5:14],10)
         else:
-            self.iSecond = int(fn[6:16],10)
+            fileList = [ f for f in os.listdir('/mnt/ramdisk') if f.startswith('frames')]
+            if len(fileList) > 0:
+                fn = max(fileList)
+                self.iSecond = int(fn[6:16],10)
             
     @staticmethod
     def unpack(d, frameOnly=False):
@@ -201,6 +213,7 @@ struct datapacket {
         return retval
     @staticmethod
     def unpackOneFramesFile(ffn):
+        print "begin ReceiveFPGAStream.unpackOneFrameFile ffn=",ffn
         with open(ffn,'rb') as file:
             data = file.read()
         i0 = 0
@@ -272,4 +285,7 @@ def test(fn):
 
 if __name__ == "__main__":
     ffn = "frames1558032100.bin"
+    t0 = datetime.datetime.now()
     rv = ReceiveFPGAStream.unpackOneFramesFile(ffn)
+    t1 = datetime.datetime.now()
+    print "seconds=",(t1-t0).total_seconds()
