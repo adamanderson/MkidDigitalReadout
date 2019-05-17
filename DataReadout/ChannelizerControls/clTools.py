@@ -24,6 +24,7 @@ import scipy.special
 from scipy.signal import butter, filtfilt, find_peaks
 from autoZdokCal import loadDelayCal, findCal
 from myQdr import Qdr as myQdr
+from collections import Counter
 import casperfpga
 import Roach2Controls
 # Modules from this package that may be changed during an interactive session
@@ -67,8 +68,10 @@ Return -- the resulting rchc
     roachController = Roach2Controls.Roach2Controls(ipaddress, FPGAParamFile, False, False)
     roachController.connect()
     fpgPath = config.get('Roach '+str(roachNumber),'fpgPath')
+    
     print "set casperfpga.utils logger to INFO"
     casperfpga.utils.LOGGER.setLevel(logging.INFO)
+    print "loading firmware",fpgPath
     roachController.fpga.upload_to_ram_and_program(fpgPath)
     print 'Fpga Clock Rate:',roachController.fpga.estimate_fpga_clock()
     roachController.loadBoardNum(roachNumber)
@@ -993,10 +996,11 @@ def fpgaStreamToPkl(baseFileName='fpgaStream',nFrames=1000, unpack=True):
             pass
     return pfn
 
-def fpgaSyncToScreen(nFrames=1, port=50000):
+def fpgaSyncToScreen(nFrames=1, port="/mnt/ramdisk/frames"):
     rfs = ReceiveFPGAStream.ReceiveFPGAStream(port=port)
     tPrev = None
     lastSyncTime = None
+    c = Counter()
     for i in range(nFrames):
         #if readValid: print "%d/%d"%(i,nFrames),
         data = rfs.read()
@@ -1022,17 +1026,24 @@ def fpgaSyncToScreen(nFrames=1, port=50000):
                     bse = row[0]
                     if ts == 511 and xc < 511:
                         syncTime = (rv['starttime']-starttime0)
-                        #print "xc=%3d   time=%8d"%(xc,syncTime)
+                        #print "FOUND ONE:  xc=%3d   syncTime=%8d"%(xc,syncTime)
                         if lastSyncTime is not None:
+                            deltaSyncTime = syncTime-lastSyncTime
+                            c[deltaSyncTime] += 1
                             if syncTime > lastSyncTime:
-                                deltaSyncTime = syncTime-lastSyncTime
                                 deltaSyncSec = deltaSyncTime*0.5e-3
-                                print "syncTime=%8d deltaSyncTime = %7.5f seconds"%(syncTime,deltaSyncSec)
+                                #print "                     syncTime=%8d deltaSyncTime = %7.5f seconds"%(syncTime,deltaSyncSec)
                         lastSyncTime = syncTime
                 except:
                     print "out of range"
-    
-def fpgaToScreen(nFrames=1, npToPrintMax=0, readValid=False, frameHeader=True, tsThreshold=-1, port='/mnt/ramdisk' ):
+    cKeys = c.keys()
+    cKeys.sort()
+    for key in cKeys:
+        dt = 0.5e-3*key
+        print "%7.5f  %4d"%(dt, c[key])
+        
+def fpgaToScreen(nFrames=1, npToPrintMax=0, readValid=False, frameHeader=True,
+                 tsThreshold=-1, port='/mnt/ramdisk/frames' ):
     rfs = ReceiveFPGAStream.ReceiveFPGAStream(port=port)
     tPrev = None
     for i in range(nFrames):
