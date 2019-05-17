@@ -246,7 +246,7 @@
       <item>
        <widget class="QLineEdit" name="fToneMin">
         <property name="toolTip">
-         <string>f tone (Hz)</string>
+         <string>f MIN tone (Hz)</string>
         </property>
         <property name="text">
          <string>5.7e9</string>
@@ -256,7 +256,7 @@
       <item>
        <widget class="QLineEdit" name="fToneMax">
         <property name="toolTip">
-         <string>f tone (Hz)</string>
+         <string>f MAX tone (Hz)</string>
         </property>
         <property name="text">
          <string>6.0e9</string>
@@ -265,6 +265,9 @@
       </item>
       <item>
        <widget class="QSpinBox" name="nTone">
+        <property name="toolTip">
+         <string>n tones</string>
+        </property>
         <property name="minimum">
          <number>1</number>
         </property>
