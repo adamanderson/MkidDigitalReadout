@@ -29,7 +29,15 @@
 #define REPORTSTRIDE 100000
 #define NRETAIN 60
 
-// compile with gcc -o StreamToRamdisk StreamToRamdisk.c -I. -lm -lrt
+// compile with gcc -o StreamToRamdisk StreamToRamdisk.c
+
+/*
+  After reboot, create /mnt/ramdisk with this:
+  $ sudo mkdir /mnt/ramdisk
+  $ sudo mount -t tmpfs -o size=2048M tmpfs /mnt/ramdisk
+  $ sudo chmod 1777 /mnt/ramdisk
+ */
+
 struct hdrpacket {
     unsigned long timestamp:36;
     unsigned int frame:12;
@@ -83,6 +91,9 @@ void Reader()
   int tZero;
   FILE *file_ptr;
 
+  char mode[] = "0666";
+  int iMode =  strtol(mode, 0, 8);
+  
   // Start from scratch
   system("find /mnt/ramdisk/ -name 'frame*' -delete");
  
@@ -164,6 +175,11 @@ void Reader()
 	fclose(file_ptr);
 	sprintf(memFileName,"/mnt/ramdisk/frames%010d.bin", tPrevious);
 	rename(memFileNameWriting, memFileName);
+	if (chmod(memFileName,iMode) < 0) {
+	  fprintf(stderr, "StreamToRamdisk: error in chmod(%s, %s) - %d (%s)\n",
+		  memFileName, mode, errno, strerror(errno));
+	  exit(1);
+	}
 	if (tNow-tZero >= NRETAIN) {
 	  sprintf(memFileName,"/mnt/ramdisk/frames%010d.bin", tNow-NRETAIN);
 	  //printf("now remove %s\n",memFileName);
