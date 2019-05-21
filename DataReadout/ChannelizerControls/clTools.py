@@ -15,6 +15,16 @@ and if you make changes to code in this file:
 
 > reload(clTools)
 
+The 'fpga*' functions use port to define the data sources.  If reading 
+directly from the FPGA, use port=50000.  In normal operations, the 
+program DataReadout/ReadoutControls/PacketMaster2/StreamToRamdisk
+is running to continuously read from port=50000 and write temporary
+files to /mnt/ramdisk.  So, the default for the 'fpga*' routines
+here is to read from those files, by specifying port=/mnt/ramdisk/frames.
+
+Earlier testing used /mnt/ramdisk/frame (note:  no s) but that use is
+deprecated and should be removed from this code.
+
 """
 import ConfigParser, binascii, datetime, dateutil, glob, hashlib
 import logging, os, pickle, sys, time, timeit,warnings, socket
@@ -155,11 +165,11 @@ def loadFreq(rchc):
 
     
 def setup(rchc):
-    """
-    load LUTs to prepare for making measurements
+    """load LUTs to prepare for making measurements
 
-    use "tonedef" in rchc.config to store hash of a combination of phase,atten,freq, and lo_freq
-    to save time from reloading again.
+    use tonedef in rchc.config to store hash of a combination of
+    phase,atten,freq, and lo_freq to save time from reloading again.
+
     """
 
     rchc.loadFreq()
@@ -365,7 +375,8 @@ def readPhasesTest(rchc):
         freqChan=freqChan, duration=duration, hostIP=hostIP, fabric_port=port)
     return data
 
-def doOnePhaseSnapshot(rchc, freqChan, duration, outDir,fileName, format="ascii"):
+def doOnePhaseSnapshot(rchc, freqChan, duration, outDir,fileName,
+                       format="ascii"):
     ipaddress = rchc.config.get(rchc.roachString, 'ipaddress')
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect((ipaddress,80))
@@ -875,6 +886,16 @@ def setAllChannelAndStreamThresholds(rchc, threshold):
             rchc.roachController.setThresh(threshold, iChannel, iStream)
             
 def clearAllBeammapCoords(rchc, xCoord=999, yCoord=888):
+    """
+    For all 1024 potential channels, tell the roach to report it 
+    with the specified xCoord,yCoord.
+
+    This is used when debugging firmware, to find out if ghost channels
+    are reporting photon packets.
+
+    After you run this, run loadBeammapCoords to uniquely identify
+    the channels you are actually using
+    """
     beammapDict = {'freqCh':[], 'xCoord':[], 'yCoord':[]}
     for iFreq in range(1024):
         beammapDict['freqCh'].append(iFreq)
@@ -909,8 +930,6 @@ def turnOffPhotonCapture(rchc):
 def turnOnPhotonCapture(rchc):
     """
     Tells roaches to start photon capture
-
-    Have to be careful to set the registers in the correct order in case we are currently in phase capture mode
     """
 
     # set up ethernet parameters
@@ -938,6 +957,14 @@ def turnOnPhotonCapture(rchc):
 
 def fpgaCheckForMissingFrames(nFrames=100000, reportStride=10000,
                               frameOnly=False, port='/mnt/ramdisk/frames'):
+    """
+    Diagnose the photon stream from the FPGA.
+
+    read nFrames frames continously.  Report status every reportStride frames.
+    Compare consecutive frame ids and count the number of missing frames.
+
+
+    """
     nInvalid = 0
     nBadDelta = 0
     nGoot = 0

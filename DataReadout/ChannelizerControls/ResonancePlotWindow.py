@@ -286,8 +286,6 @@ class ResonancePlotWindow(QtGui.QMainWindow):
                     self.leftPlot.addLine(x=None, y=qcFit, pen=rdPen)
                     fFreqOffsets = fvap[0]-f0
                     v = fvap[1]
-
-
                     name = "fit f0={:,}".format(f0Fit)
                     #name = "fit f0=%.f"%f0Fit
                     print "name=",name

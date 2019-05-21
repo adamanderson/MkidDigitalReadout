@@ -149,6 +149,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
     def doSweep(self):
         self.tsSweep = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsSweep)[:-5]
+        self.updateStepLabel()
         self.callIQTakeAvgTime.setText(dText)
         # Set to non-zero to tell the timer to keep score
         self.nSweepStep = self.nSweepStepToDo 

@@ -166,8 +166,10 @@ def loopFitPlot(loopFit, nFit = 2000, pfn = "LoopFitterTest.png", sigma=0.0):
         # plot phase in degrees
         ax[1,1].plot((fFit-f0Guess)/1e3, pFit, color=lineColor[loopType])    
         ax[1,1].axvline((f0-f0Guess)/1e3, color="r")
+        fig.suptitle(pfn)
         plt.tight_layout()
         plt.savefig(pfn, dpi=300)
+        
         plt.close(fig)
         
 def getFVAP(fa, ia, qa, iCenter=0, qCenter=0):
@@ -384,31 +386,39 @@ def findPeaks(iqData, thresholdFraction=0.3, pfn=None):
     hMin = thresholdFraction * y.max()
     peaks,_ = find_peaks(y, height=hMin)
     if pfn is not None:
+        plt.clf()
         plt.plot(fAvg, aAvg)
         plt.plot(fAvg[peaks], aAvg[peaks], 'rx')
         plt.xlabel("Frequency (Hz)")
         plt.ylabel("Amplitude (ADUs)")
+        plt.title(pfn)
         plt.savefig(pfn, dpi=300)
 
         plt.clf()
         fig,ax = plt.subplots(2,1,sharex=True)
         ax[0].plot(fAvg, iAvg)
+        ax[0].set_ylabel("I (adu)")
         ax[1].plot(fAvg, qAvg)
-        plt.savefig("junk.png",dpi=300)
+        ax[1].set_ylabel("Q (adu)")
+        ax[1].set_xlabel("f (Hz)")
+        ffn = "%s-allIQ.png"%(os.path.splitext(pfn)[0])
+        plt.suptitle(os.path.splitext(pfn)[0])
+        plt.savefig(ffn,dpi=300)
 
         plt.clf()
-        for iFreq in range(10):
+        for iFreq in range(6):
             plt.plot(I[iFreq, :],Q[iFreq, :], label=iFreq)
         plt.legend()
         plt.title("IQ")
-        plt.savefig("iq.png",dpi=300)
+        plt.title(os.path.splitext(pfn)[0])
+        plt.savefig(os.path.splitext(pfn)[0]+"-iqLoops.png",dpi=300)
         
         plt.clf()
-        for iFreq in range(len(freqList)):
+        for iFreq in range(6):
             plt.plot(iRotated[iFreq, :], qRotated[iFreq, :], label=iFreq)
         #plt.legend()
-        plt.title("IQ rotated")
-        plt.savefig("iqr.png",dpi=300)
+        plt.title(os.path.splitext(pfn)[0]+" rotated")
+        plt.savefig(os.path.splitext(pfn)[0]+"-iqrLoops.png",dpi=300)
     di = 15
     loopFits = []
     for iPeak,peak in enumerate(peaks):
@@ -421,4 +431,5 @@ def findPeaks(iqData, thresholdFraction=0.3, pfn=None):
         if pfn is not None:
             ffn = "%s-%03d.png"%(os.path.splitext(pfn)[0],iPeak)
             loopFitPlot(lf, pfn=ffn)
+        if iPeak > 2: break
     return {"peaks":peaks, "loopFits":loopFits}

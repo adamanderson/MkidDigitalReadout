@@ -203,7 +203,7 @@ void Cuber()
        // not a new second, so read in new data and parse it          
 	   br = read(cwr, data, 1024*sizeof(char));
        if( br != -1) {
-	 printf("Cuber:  read br=%d\n",br); fflush(stdout);
+	 //printf("Cuber:  read br=%d\n",br); fflush(stdout);
           //if( br > 0 ) printf("br = %d | oldbr = %d\n",br,oldbr);fflush(stdout);
                  
           // we may be in the middle of a packet so put together a full packet from old data and new data
