@@ -1,5 +1,5 @@
 import clTools
-import datetime, os, pickle, socket, struct, time
+import datetime, os, pickle, socket, struct, time, glob
 import numpy as np
 class ReceiveFPGAStream():
     packetLabels = ['baseline','wvl','timestamp','ycoord','xcoord','usec']
@@ -256,6 +256,15 @@ struct datapacket {
                                                     nBitsPerPhase=18,
                                                     binPtPhase=15)
         return {"ffn":ffn,"times":times,"baselines":baselines,"phases":phases}
+    
+    @staticmethod
+    def getLastFrame():
+        list_of_files = glob.glob('/mnt/ramdisk/*.bin')
+        latest_file = max(list_of_files, key=os.path.getctime)
+        print latest_file
+        return ReceiveFPGAStream.unpackOneFramesFile(latest_file)
+
+    
 
 def test(fn):
     print "test",fn
