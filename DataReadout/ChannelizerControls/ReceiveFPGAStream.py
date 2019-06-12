@@ -3,7 +3,7 @@ import datetime, os, pickle, socket, struct, time
 import numpy as np
 class ReceiveFPGAStream():
     packetLabels = ['baseline','wvl','timestamp','ycoord','xcoord','usec']
-    def __init__(self,port=50000,host='',timeoutSeconds=3, iSecond=None):
+    def __init__(self,port=50000,host='',timeoutSeconds=3, iSecond=None, doFastForward=True):
         self.port = port
         self.timeoutSeconds = timeoutSeconds
         print "ReceiveFPGAStream.__init__:  port=",port
@@ -168,7 +168,7 @@ struct datapacket {
             return rv
         
         if ord(d[0]) != 255:
-            raise ValueError("It should be 255 but ord(data[0])=%d"%ord(data[0]))
+            raise ValueError("It should be 255 but ord(d[0])=%d"%ord(d[0]))
         a = d[:8]
         #ss = struct.unpack('<Q',a)[0] 
         ss = struct.unpack('>Q',a)[0] # this byte order worked on April 22, 2019
