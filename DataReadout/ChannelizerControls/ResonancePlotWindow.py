@@ -1,3 +1,4 @@
+
 import datetime, time, os, json_tricks, pickle
 from PyQt5 import QtGui, uic, QtCore
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, QRectF, QPointF
@@ -35,7 +36,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
 
         self.sweepState.clicked.connect(self.doSweep)
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
-        self.sweepState.setText("Ready to Sweep")
+        self.sweepState.setText("Ready to --Sweep")
 
         self.sweepProgressBar.setMinimum(0)
         self.sweepProgressBar.setMaximum(100)
@@ -48,12 +49,19 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         self.timer=QTimer()
         self.timer.timeout.connect(self.doTimer)
         self.timer.start(200)
+
+        self.Rotate.clicked.connect(self.doRotate)
+
+        
+        self.Translate.clicked.connect(self.doTranslate)         
+        
         
         items = []
         for resID,resFreq,atten in zip(rchc.roachController.resIDs,
                                  rchc.roachController.freqList,
                                  rchc.roachController.attenList):
             items.append("%4d %s %5.1f"%(resID, "{:,}".format(resFreq),atten))
+    
         self.iFreq.addItems(items)
         self.iFreq.currentIndexChanged.connect(self.iFreqChanged)
         self.iFreq.setCurrentIndex(0)
@@ -178,6 +186,16 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         setValue = self.rchc.roachController.attenVal[iAtten]
         sender.setValue(setValue)
         sender.setStyleSheet("background-color:white;")
+
+    def doRotate(self):
+        self.Rotate.setText("Rotating")
+        clTools.rotateLoops(self.rchc)
+        self.Rotate.setText("Rotate")
+
+    def doTranslate(self):
+        self.Translate.setText("Translating")
+        clTools.translateLoops(self.rchc)
+        self.Translate.setText("Translate")
         
     def mouseMoved(self, event):
         for i,item in enumerate(self.graphicsLayoutWidget.items()):

@@ -47,7 +47,7 @@
          </size>
         </property>
         <property name="text">
-         <string>callTakeIQAvgTime?</string>
+         <string>call TakeI QAvgTime?</string>
         </property>
        </widget>
       </item>
@@ -239,6 +239,46 @@
         </property>
         <property name="singleStep">
          <double>0.250000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_4">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="Rotate">
+        <property name="text">
+         <string>Rotate</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="Translate">
+        <property name="text">
+         <string>Translate</string>
         </property>
        </widget>
       </item>
