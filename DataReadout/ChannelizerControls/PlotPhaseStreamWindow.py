@@ -1,4 +1,4 @@
-import datetime, json_tricks, os, pickle, sys, time, warnings
+import datetime, json_tricks, os, pickle, sys, time, warnings,glob
 from PyQt5 import QtGui, uic, QtCore
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, QRectF, QPointF
 import numpy as np
@@ -10,6 +10,7 @@ reload(clTools)
 import LoopFitter
 reload(LoopFitter)
 from scipy.signal import decimate, welch
+import unpackOneFramesFile
 
 if not sys.warnoptions:
     warnings.simplefilter("ignore")
@@ -36,6 +37,15 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
         
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
+
+        self.stream = str(self.streamSource.currentText()).strip()
+        self.streamSource.currentIndexChanged.connect(self.streamChanged)
+        
+        self.channelF = int(self.channelFromFile.currentText())
+        self.channelFromFile.currentIndexChanged.connect(self.channelFromFileChanged)
+
+        self.fileN = int(self.fileNum.currentText())
+        self.fileNum.currentIndexChanged.connect(self.fileNumChanged)
 
         self.streamState.clicked.connect(self.doStream)
         self.streamState.setStyleSheet(ssColor("lightGreen"))
@@ -114,6 +124,15 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
             self.iFreq.addItems(items)
         except AttributeError: # If nothing is defined in the roachController
             pass
+        
+    def streamChanged(self):
+        self.stream = str(self.streamSource.currentText()).strip()
+        
+    def channelFromFileChanged(self):
+        self.channelF = int(self.channelFromFile.currentText())
+
+    def fileNumChanged(self):
+        self.fileN = int(self.fileNum.currentText())
             
     def closeEvent(self, event):
         """
@@ -133,20 +152,23 @@ class PlotPhaseStreamWindow(QtGui.QMainWindow):
             self.close()
 
     def doStream(self):
-        self.tsStream = datetime.datetime.now()
-        dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsStream)[:-5]
-        self.callGetPhaseStreamTime.setText(dText)
-        duration = self.duration.value()
-        channel = self.iFreq.currentIndex()
-        self.expectedDuration = duration
-        self.doingStream = True # Set to True to tell the timer to keep score
-        self.streamState.setText("Streaming for %.2f sec"%(duration))
-        self.streamState.setStyleSheet(ssColor("lightPink"))
-        self.streamProgressBar.setValue(0)
+        if self.stream == 'DAQ':
+            self.tsStream = datetime.datetime.now()
+            dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsStream)[:-5]
+            self.callGetPhaseStreamTime.setText(dText)
+            duration = self.duration.value()
+            channel = self.iFreq.currentIndex()
+            self.expectedDuration = duration
+            self.doingStream = True # Set to True to tell the timer to keep score
+            self.streamState.setText("Streaming for %.2f sec"%(duration))
+            self.streamState.setStyleSheet(ssColor("lightPink"))
+            self.streamProgressBar.setValue(0)
 
-        # Set values in rchc.config, which is what clTools.performIQSweep uses
-        rchc = self.rchc
-        dqToWorker.append({"duration":duration, "channel":channel})
+            # Set values in rchc.config, which is what clTools.performIQSweep uses
+            rchc = self.rchc
+            dqToWorker.append({"duration":duration, "channel":channel})
+        else:
+            dqToWorker.append({"duration":0,"channel":self.channelF})
 
     def generateTone(self):
         self.tsToneGeneration = datetime.datetime.now()
@@ -310,14 +332,22 @@ class Worker(QThread):
                 message = dqToWorker.popleft()
                 channel = message['channel']
                 duration = message['duration']
-                self.doAStream(channel, duration)
+                if self.parent.stream == "DAQ":
+                    self.doAStream(channel, duration)
+                else:
+                    self.readFromRAM(channel)
                 dqToWorker.clear()
             except IndexError:
                 time.sleep(0.1)
             except AttributeError:
                 # protect against race condition when shutting down
                 break
+
+            
     def doAStream(self, channel, duration, verbose=False):
+
+        #print "Channel", channel, " duration " , duration
+        
         if verbose: print "PlotPhaseStreamWindow.doAStream: begin",channel, duration
         timestamp = datetime.datetime.now()
         rchc = self.parent.rchc
@@ -327,8 +357,28 @@ class Worker(QThread):
         if verbose:
             print "PlotPhaseStreamWindow.doAStream: ended clTools.getPhaseStream"
         self.signalFromWorker.emit(streamData)
+        print "strem data", streamData["data"]
         if verbose:
             print "PlotPhaseStreamWindow.doAStream: done"
+
+    def readFromRAM(self,channelF):
+      
+        list_of_files = glob.glob('/mnt/ramdisk/frame*.bin')
+        list_of_files.sort(key=lambda x: os.path.getmtime(x),reverse = True)
+        fileNum=self.parent.fileN
+        fileToRead  = list_of_files[fileNum]
+
+        print 'reading  file' , fileToRead ,'channel', channelF
+
+        
+        rv = unpackOneFramesFile.unpackOneFramesFile(fileToRead)
+        print "channels ", rv["channels"]
+        inds = np.where(rv['channels'] ==  channelF)
+        streamData = {'data':rv['phases'][inds]}
+        
+        self.signalFromWorker.emit(streamData)
+
+            
 
 class ToneGenerator(QThread):
     signalFromToneGenerator = pyqtSignal(dict)
