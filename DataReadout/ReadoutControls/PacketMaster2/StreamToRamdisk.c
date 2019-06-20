@@ -27,7 +27,7 @@
 #define BUFLEN 1500
 #define PORT 50000
 #define REPORTSTRIDE 100000
-#define NRETAIN 60
+#define NRETAIN 600
 
 // compile with gcc -o StreamToRamdisk StreamToRamdisk.c
 
