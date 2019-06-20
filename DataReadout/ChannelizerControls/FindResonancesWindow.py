@@ -37,6 +37,10 @@ class FindResonancesWindow(QtGui.QMainWindow):
         self.stop.clicked.connect(self.doStop)
         self.stop.setStyleSheet(ssColor("red"))
 
+        self.addPeak.clicked.connect(self.doAddPeak)
+        self.loadFrequencyFile.clicked.connect(self.doLoadFrequencyFile)
+        self.saveFrequencyFile.clicked.connect(self.doSaveFrequencyFile)
+        
         self.sweepState.clicked.connect(self.doSweep)
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
         self.sweepState.setText("Ready to Sweep")
@@ -92,6 +96,7 @@ class FindResonancesWindow(QtGui.QMainWindow):
                                          .connect(self.mouseMoved)
         self.previousPlotState = None
 
+        self.addedLines = []
         self.show()
 
         try:
@@ -146,6 +151,46 @@ class FindResonancesWindow(QtGui.QMainWindow):
             self.timer.stop()
             self.close()
 
+    def doAddPeak(self):
+        print "hello from addPeak"
+        if self.wtp == "PeakFinder":
+            vr = self.topPlot.viewRange()
+            fmin = vr[0][0]
+            fmax = vr[0][1]
+            fline = 0.5*(fmin+fmax)
+            s = str(len(self.addedLines))
+            line = pg.InfiniteLine(fline, movable=True,name=s, label=s)
+            self.addedLines.append(line)
+            self.topPlot.addItem(line)
+            
+    def doLoadFrequencyFile(self):
+        print "hello from doLoadFrequencyFile"
+        for line in self.addedLines:
+            self.topPlot.removeItem(line)
+        self.addedLines = []
+        fileName = str(self.freqFileName.text())
+        print "fileName =",fileName
+        atten = 30
+        with open(fileName, 'rb') as file:
+            lines = file.readlines()
+        for line in lines:
+            print "now add line =",line
+            i,value,atten = line.split()
+            print "i,value,atten",i,value,atten
+            il = pg.InfiniteLine(float(value),movable=True, name=i, label=i)
+            self.addedLines.append(il)
+            self.topPlot.addItem(il)
+            
+    def doSaveFrequencyFile(self):
+        print "hello from doSaveFrequencyFile"
+        fileName = str(self.freqFileName.text())
+        print "fileName =",fileName
+        atten = 30
+        with open(fileName, 'wb') as file:
+            for i,line in enumerate(self.addedLines):
+                print i,line.value()
+                file.write("%d %f %f\n"%(i,line.value(),atten))
+                
     def doSweep(self):
         self.tsSweep = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsSweep)[:-5]
@@ -327,6 +372,9 @@ class FindResonancesWindow(QtGui.QMainWindow):
                     self.topPlot.setLabel('bottom', 'Frequency', 'Hz')
                     self.topPlot.setLabel('left', "IQ Velocity", "ADUs/Hz")
 
+                    #self.line = pg.InfiniteLine(favgs[0], movable=True)
+                    #self.topPlot.addItem(self.line)
+                    
     def doTimer(self):
         n = datetime.datetime.now()
         dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(n)[:-5]
