@@ -1,5 +1,5 @@
 import clTools
-import datetime, os, pickle, socket, struct, time, glob
+import datetime, glob, os, pickle, socket, struct, sys, time
 import numpy as np
 class ReceiveFPGAStream():
     packetLabels = ['baseline','wvl','timestamp','ycoord','xcoord','usec']
@@ -103,6 +103,7 @@ class ReceiveFPGAStream():
             print "ReceiveFPGAStream:  wait for fn=",fn
             for i in range(self.timeoutSeconds):
                 if os.path.isfile(fn):
+                    print "now read",fn
                     with open(fn, mode='rb') as file:
                         data = file.read()
                     return data
@@ -293,8 +294,13 @@ def test(fn):
     return d
 
 if __name__ == "__main__":
-    ffn = "frames1558032100.bin"
+    try:
+        ffn = sys.argv[1]
+    except:
+        ffn = "frames1558032100.bin"
+    print "ffn = ",ffn
     t0 = datetime.datetime.now()
     rv = ReceiveFPGAStream.unpackOneFramesFile(ffn)
+    print rv.keys()
     t1 = datetime.datetime.now()
     print "seconds=",(t1-t0).total_seconds()
