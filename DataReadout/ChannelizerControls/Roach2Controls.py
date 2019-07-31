@@ -2131,10 +2131,16 @@ class Roach2Controls:
             stream=streams[i]
             #ch, stream = np.where(self.freqChannels == self.freqList[i])
             #print 'IQ center',ch,centers[i][0],centers[i][1]
-            I_c = int(centers[i][0]/2**3)
-            Q_c = int(centers[i][1]/2**3)
-            
-            center = (I_c<<16) + (Q_c<<0)   # 32 bit number - 16bit I + 16bit Q
+
+            ## Original way
+            ##I_c = int(centers[i][0]/2**3)
+            ##Q_c = int(centers[i][1]/2**3)            
+            ##center = (I_c<<16) + (Q_c<<0)   # 32 bit number - 16bit I + 16bit Q
+
+            # Adam and Chris June 11, 2019
+            I_c = int(math.floor(centers[i][0]/8.0))
+            Q_c = int(math.floor(centers[i][1]/8.0))
+            center = bin_pack(I_c, Q_c)
             print 'Roach2Controls:  loading i,I_c,Q_c,center',i,I_c,Q_c,center
             self.fpga.write_int(self.params['iqCenter_regs'][stream], center)
             self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], (ch<<1)+(1<<0))
@@ -2152,7 +2158,28 @@ class Roach2Controls:
         self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUART_reg'],0)        
-        
+
+def bin_pack(I, Q):
+    """
+    pack two signed 16-bit values to one 32-bit value to be sent to FPGA 
+    """
+    Ishifted = (I<<16) | (2**16-1)
+    Qshifted = Q | ((2**16-1)<<16)
+    combined = Ishifted & Qshifted
+    return combined
+
+def bin_unpack(combined):
+    """
+    unpack one 32-bit value to two signed 16-bit values
+    """
+    I = (combined & ((2**16-1)<<16)) >> 16
+    Q = combined & (2**16-1)
+    if I & (2**15) != 0:
+        I = I | (-(2**15))
+    if Q & (2**15) != 0:
+        Q = Q | (-(2**15))
+    return I, Q
+
 if __name__=='__main__':
     if len(sys.argv) > 1:
         ip = sys.argv[1]
