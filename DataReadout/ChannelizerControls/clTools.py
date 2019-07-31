@@ -262,8 +262,10 @@ def performIQSweep(rchc, saveToFile=None, doLoopFit=True, verbose=False):
             freqList = iqData['freqList'][iFreq]
             freqs = freqList + freqOffset
             if verbose: print "in clTools.performIQSweep:  call loopFitter iFreq =",iFreq
-            
-            loopFit = LoopFitter.loopFitter(freqs, ia, qa, nFit=2000)
+            try:
+                loopFit = LoopFitter.loopFitter(freqs, ia, qa, nFit=2000)
+            except ZeroDivisionError:
+                loopFit = {}
             if verbose: print "in clTools.performIQSweep:  done loopFitter iFreq =",iFreq
             iqData['loopFits'].append(loopFit)
     if verbose: print "in clTools.performIQSweep:  return"
@@ -661,9 +663,12 @@ def readCenters(rchc):
     centers = np.empty((len(channels),2))
     for i,(ch,stream) in enumerate(zip(channels, streams)):
         center = rchc.roachController.fpga.read_int(rchc.roachController.params['iqCenter_regs'][stream])
-        Q_c = 8*(center & (2**16-1))
-        I_c = 8*(center >> 16)
-        centers[i,:] = (I_c,Q_c)
+        ## Original Way
+        #Q_c = 8*(center & (2**16-1))
+        #I_c = 8*(center >> 16)
+        # Adam and Chris June 11, 2019
+        I_c, Q_c = Roach2Controls.bin_unpack(center)
+        centers[i,:] = (8*I_c, 8*Q_c)
     return centers
         
 def takeAvgIQData(rchc, numPts = 100, verbose=True):
@@ -745,7 +750,10 @@ Return:
     t1 = datetime.datetime.now()
     retval = {"data":data, "t0":t0, "t1":t1, "duration":duration, "resID":resID}
     retval['attenVal'] = rchc.roachController.attenVal
-    retval['faat'] = getDewarTemperature()['faat']    
+    try:
+        retval['faat'] = getDewarTemperature()['faat']
+    except SystemError:
+        retval['faat'] = -999.99
     return retval
 
 def getTwoSnapshots(rchc):
@@ -1053,7 +1061,7 @@ def fpgaSyncToScreen(nFrames=1, port="/mnt/ramdisk/frames"):
                     bse = row[0]
                     if ts == 511 and xc < 511:
                         syncTime = (rv['starttime']-starttime0)
-                        #print "FOUND ONE:  xc=%3d   syncTime=%8d"%(xc,syncTime)
+                        print "FOUND ONE:  xc=%3d   syncTime=%8d"%(xc,syncTime)
                         if lastSyncTime is not None:
                             deltaSyncTime = syncTime-lastSyncTime
                             c[deltaSyncTime] += 1
