@@ -8,6 +8,9 @@ import array
 def unpackOneFramesFile(ffn):
     with open(ffn,'rb') as file:
         data = file.read()
+    return unpackData(data)
+
+def unpackData(data):
     frames = []
     i0 = 0
     while(True):
@@ -70,6 +73,7 @@ def unpackFrame(frame):
     p = packets
     nPhotons = len(p)
     t0Frame = starttime*0.5e-3
+    #print "frame,t0Frame, starttime = %5d %.4f  %d"%(frame, t0Frame, starttime)
     for iPhoton in range(nPhotons):
         channel = p[iPhoton][4]
         if channel < 511:
@@ -136,7 +140,7 @@ def unpack(d, frameOnly=False):
         return rv
 
     if ord(d[0]) != 255:
-        raise ValueError("It should be 255 but ord(data[0])=%d"%ord(data[0]))
+        raise ValueError("It should be 255 but ord(d[0])=%d"%ord(d[0]))
     a = d[:8]
     #ss = struct.unpack('<Q',a)[0] 
     ss = struct.unpack('>Q',a)[0] # this byte order worked on April 22, 2019
