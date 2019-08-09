@@ -36,7 +36,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
 
         self.sweepState.clicked.connect(self.doSweep)
         self.sweepState.setStyleSheet(ssColor("lightGreen"))
-        self.sweepState.setText("Ready to --Sweep")
+        self.sweepState.setText("Ready to Sweep")
 
         self.sweepProgressBar.setMinimum(0)
         self.sweepProgressBar.setMaximum(100)
@@ -135,7 +135,25 @@ class ResonancePlotWindow(QtGui.QMainWindow):
             self.timer.stop()
             self.close()
 
+    def buttonsSetEnabled(self,state):
+        if state:
+            self.sweepState.setStyleSheet(ssColor("lightGreen"))
+            self.sweepState.setText("Sweep")
+            self.Rotate.setStyleSheet(ssColor("lightGreen"))
+            self.Rotate.setText("Rotate")
+        else:
+            self.sweepState.setStyleSheet(ssColor("lightPink"))
+            self.sweepState.setText("working")
+            self.Rotate.setStyleSheet(ssColor("lightPink"))
+            self.Rotate.setText("working")
+            
+        self.sweepState.setEnabled(state)
+        self.Rotate.setEnabled(state)
+        
+        self.Translate.setEnabled(state)
+        
     def doSweep(self):
+        self.buttonsSetEnabled(False)
         self.nSweepStep = self.getNStepFromGui()
         self.expectedSweepSeconds = int(self.nSweepStep)*0.4 # Expect 0.4 seconds per sweep step
         self.tsSweep = datetime.datetime.now()
@@ -149,6 +167,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
 
     def iFreqChanged(self, index):
         self.iFreqIndex = index
+        print "Hello from iFreqChanged:  self.iFreqIndex=",self.iFreqIndex
         self.iFreqResID = self.rchc.roachController.resIDs[index]
         self.iFreqFreq  = self.rchc.roachController.freqList[index]
         self.iFreqAtten = self.rchc.roachController.attenList[index]
@@ -165,8 +184,7 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         # This is set in clTools.performIQSweep
         #self.rchc.recentIQData = self.recentIQData
         self.updatePlots()
-        self.sweepState.setStyleSheet(ssColor("lightGreen"))
-        self.sweepState.setText("Ready to Sweep")
+        self.buttonsSetEnabled(True)
         self.nSweepStep = 0
         
     def whatToPlotChanged(self, index):
@@ -188,6 +206,18 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         sender.setStyleSheet("background-color:white;")
 
     def doRotate(self):
+        self.buttonsSetEnabled(False)
+        self.nSweepStep = self.getNStepFromGui()
+        # Expect 70+2 seconds to rotate and then 0.4 seconds per sweep step
+        self.expectedSweepSeconds = 72 + int(self.nSweepStep)*0.4 
+        self.nSweepStep = 1 # any non zero value
+        self.tsSweep = datetime.datetime.now()
+        dText = "{:%Y-%m-%d %H:%M:%S.%f}".format(self.tsSweep)[:-5]
+        self.callIQTakeAvgTime.setText(dText)
+        self.sweepProgressBar.setValue(0)
+        dqToWorker.append("PleaseRotate")
+        
+    def doRotateOld(self):
         self.Rotate.setText("Rotating")
         clTools.rotateLoops(self.rchc)
         self.Rotate.setText("Rotate")
@@ -221,7 +251,11 @@ class ResonancePlotWindow(QtGui.QMainWindow):
         # http://pyqtgraph.org/documentation/_modules/pyqtgraph/graphicsItems/PlotDataItem.html#PlotDataItem
         if self.recentIQData is not None:
             showFit = self.recentIQData.has_key("loopFits") and self.showFits.isChecked()
-            iFreqIndex = self.iFreqIndex
+            try:
+                iFreqIndex = self.iFreqIndex
+            except AttributeError:
+                self.iFreqChanged(0);
+                iFreqIndex = 0
             self.graphicsLayoutWidget.clear()
             iList = self.recentIQData['I'][iFreqIndex]
             qList = self.recentIQData['Q'][iFreqIndex]
@@ -347,13 +381,22 @@ class Worker(QThread):
                     message = dqToWorker.popleft()
                 except AttributeError:
                     raise IndexError
-                self.doASweep()
-                dqToWorker.clear()
+                if message == "PleaseDoASweep":
+                    self.doASweep()
+                    dqToWorker.clear()
+                if message == "PleaseRotate":
+                    print " now call self.doARotation"
+                    self.doARotation(verbose=True)
+                    dqToWorker.clear()
+                else:
+                    print "ResonancePlotWindow:  teach me how to ",message
+                    
             except IndexError:
                 try:
                     time.sleep(0.1)
                 except AttributeError:
                     pass
+
     def doASweep(self, verbose=False):
         if verbose: print "ResonancePlotWindow.doASweep: begin"
         timestamp = datetime.datetime.now()
@@ -371,6 +414,27 @@ class Worker(QThread):
         if verbose: print "ResonancePlotWindow.doASweep: call signalFromWorker.emit"
         self.signalFromWorker.emit(data)
         if verbose: print "ResonancePlotWindow.doASweep: done"
+        
+    def doARotation(self, verbose=False):
+        if verbose: print "ResonancePlotWindow.doARotation: begin"
+        timestamp = datetime.datetime.now()
+        rchc = self.parent.rchc
+        t0 = datetime.datetime.now()
+        if verbose: print "ResonancePlotWindow.doARotation: call clTools.rotateLoops"
+        iqData = clTools.rotateLoops(self.parent.rchc)
+        if verbose: print "ResonancePlotWindow.doARotation: call back from rotateLoops"
+
+        iqData = clTools.performIQSweep(self.parent.rchc)
+
+        t1 = datetime.datetime.now()
+        dt = t1-t0
+        data = {
+            'timestamp':timestamp,
+            'iqData':iqData
+        }
+        if verbose: print "ResonancePlotWindow.doARotation: call signalFromWorker.emit"
+        self.signalFromWorker.emit(data)
+        if verbose: print "ResonancePlotWindow.doARotation: done"
         
 def ssColor(color):
     retval = "QWidget {background-color:"
