@@ -27,7 +27,7 @@
 #define BUFLEN 1500
 #define PORT 50000
 #define REPORTSTRIDE 100000
-#define NRETAIN 600
+#define NRETAIN 1200
 
 // compile with gcc -o StreamToRamdisk StreamToRamdisk.c
 
@@ -37,6 +37,7 @@
   $ sudo mount -t tmpfs -o size=2048M tmpfs /mnt/ramdisk
   $ sudo chmod 1777 /mnt/ramdisk
  */
+
 
 struct hdrpacket {
     unsigned long timestamp:36;
@@ -91,9 +92,14 @@ void Reader()
   int tZero;
   FILE *file_ptr;
 
+
+
+  /* set file permissions*/
+
   char mode[] = "0666";
-  int iMode =  strtol(mode, 0, 8);
-  
+  int iMode;
+  iMode = strtol(mode, 0, 0);
+
   // Start from scratch
   system("find /mnt/ramdisk/ -name 'frame*' -delete");
  
@@ -175,11 +181,6 @@ void Reader()
 	fclose(file_ptr);
 	sprintf(memFileName,"/mnt/ramdisk/frames%010d.bin", tPrevious);
 	rename(memFileNameWriting, memFileName);
-	if (chmod(memFileName,iMode) < 0) {
-	  fprintf(stderr, "StreamToRamdisk: error in chmod(%s, %s) - %d (%s)\n",
-		  memFileName, mode, errno, strerror(errno));
-	  exit(1);
-	}
 	if (tNow-tZero >= NRETAIN) {
 	  sprintf(memFileName,"/mnt/ramdisk/frames%010d.bin", tNow-NRETAIN);
 	  //printf("now remove %s\n",memFileName);
@@ -190,6 +191,11 @@ void Reader()
       sprintf(memFileNameWriting,
 	      "/mnt/ramdisk/frames%010d.binWRITING", tNow);
       file_ptr = fopen(memFileNameWriting,"wb");
+      if (fchmod(fileno(file_ptr), iMode) < 0 ) {
+	fprintf(stderr, "StreamToRamdisk: error in fchmod %s\n", memFileNameWriting);
+      }
+
+	     
     }
     fwrite((const void*) &nBytesReceived, sizeof(ssize_t), 1, file_ptr);
     //if (tNow==tZero) {
