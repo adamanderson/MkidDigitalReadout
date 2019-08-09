@@ -384,7 +384,7 @@ class Worker(QThread):
                 if message == "PleaseDoASweep":
                     self.doASweep()
                     dqToWorker.clear()
-                if message == "PleaseRotate":
+                elif message == "PleaseRotate":
                     print " now call self.doARotation"
                     self.doARotation(verbose=True)
                     dqToWorker.clear()
