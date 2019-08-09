@@ -35,7 +35,7 @@
   After reboot, create /mnt/ramdisk with this:
   $ sudo mkdir /mnt/ramdisk
   $ sudo mount -t tmpfs -o size=2048M tmpfs /mnt/ramdisk
-  $ sudo chmod 1777 /mnt/ramdisk
+  $ sudo chmod 0777 /mnt/ramdisk
  */
 
 
