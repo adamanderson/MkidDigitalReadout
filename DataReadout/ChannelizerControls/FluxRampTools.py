@@ -70,6 +70,7 @@ class FluxRamp():
                     x,yFit = fit.linspace(n=n+1)
                     resid = st-yFit
                     syncFreq = 1/fit.convert().coef[1]
+                    print "hello:  fit.convert()=",fit.convert()
                     sic['fit'] = fit                
                     sic['syncTimesFit'] = yFit
                     sic['syncFreq'] = syncFreq
@@ -99,7 +100,13 @@ class FluxRamp():
         plt.savefig("%s-residualVsTSync.png"%self.name,dpi=600)
    
     def phiPrepare(self, channel, ist, doPlot=True):
-        t, p, dt, tMin, tMax, stf = self.getTrace(channel, ist, fraction=2.0, fractionOffset=0.0)
+        """
+        Usually run interactively, to set and/or check parameters for
+        measuring phi for each time sample in this data set
+        """
+        # Get one trace that is 2 flux ramps wide
+        t, p, dt, tMin, tMax, stf = self.getTrace(
+            channel, ist, fraction=2.0, fractionOffset=0.0)
         dp = np.power(p[1:]-p[:-1],2)
         ndp = len(dp)
         at = 0.5*(t[1:]+t[:-1])
