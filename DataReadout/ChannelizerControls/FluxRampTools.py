@@ -53,28 +53,26 @@ class FluxRamp():
             allPhases = _ltoa(l_allPhases)
             self.syncInfo = {}
             st0 = allSyncTimes[0]
+                       
+            st = np.unique(allSyncTimes)-st0
+            self.syncInfo['syncTimes'] = st
+            x = np.arange(len(st))
+            fit = Polynomial.fit(x, st, 1)
+            print("fit.coef=",fit.coef)
+            n = fit.domain[1]
+            x,yFit = fit.linspace(n=n+1)
+            resid = st-yFit
+            syncFreq = 1/fit.convert().coef[1]
+            self.syncInfo['fit'] = fit                
+            self.syncInfo['syncTimesFit'] = yFit
+            self.syncInfo['syncFreq'] = syncFreq
+
             print "sort by channel"
             for channel in np.unique(allSyncChannels):
                 if channel > 0:
                     print "channel =",channel
                     sic = {}
                     self.syncInfo[channel] = sic
-
-                    inds = np.where(allSyncChannels == channel)[0]
-                    st = allSyncTimes[inds]-st0
-                    sic['syncTimes'] = st
-                    x = np.arange(len(inds))
-                    fit = Polynomial.fit(x, st, 1)
-                    print("fit.coef=",fit.coef)
-                    n = fit.domain[1]
-                    x,yFit = fit.linspace(n=n+1)
-                    resid = st-yFit
-                    syncFreq = 1/fit.convert().coef[1]
-                    print "hello:  fit.convert()=",fit.convert()
-                    sic['fit'] = fit                
-                    sic['syncTimesFit'] = yFit
-                    sic['syncFreq'] = syncFreq
-
                     inds = np.where(allPhaseChannels == channel)[0]
                     sic['phaseTimes'] = allPhaseTimes[inds] - st0
                     sic['phases'] = allPhases[inds]
@@ -85,8 +83,8 @@ class FluxRamp():
     
     def plotResidualVsTSync(self, channel, n):
         import matplotlib.pyplot as plt
-        st  = self.syncInfo[channel]['syncTimes'][:n]
-        stf = self.syncInfo[channel]['syncTimesFit'][:n]
+        st  = self.syncInfo['syncTimes'][:n]
+        stf = self.syncInfo['syncTimesFit'][:n]
         tmf = st - stf
         plt.scatter(stf, tmf, s=1, c='midnightblue')
         #plt.plot(stf,tmf,'o', color='midnightblue')
@@ -110,7 +108,7 @@ class FluxRamp():
         dp = np.power(p[1:]-p[:-1],2)
         ndp = len(dp)
         at = 0.5*(t[1:]+t[:-1])
-        syncFreq = self.syncInfo[channel]['syncFreq']
+        syncFreq = self.syncInfo['syncFreq']
         arg0 = np.argmax(dp[:ndp//2])
         offset = at[arg0] - 1.0/syncFreq
         arg1 = np.argmax(dp[ndp//2:])+ndp//2
@@ -120,10 +118,10 @@ class FluxRamp():
         ts, ps, dts, tMins, tMaxs, stfs = self.getTrace(channel, ist, 
                                                         fraction=0.95, fractionOffset=fractionOffset)
         fitSine = fit_sin(ts,ps)
-        self.syncInfo[channel]['rampFreq'] = fitSine['freq']
-        self.syncInfo[channel]['fractionOffset'] = fractionOffset
-        self.syncInfo[channel]['rCos'] = np.cos(2*np.pi*ts*fitSine['freq'])
-        self.syncInfo[channel]['rSin'] = np.sin(2*np.pi*ts*fitSine['freq'])
+        self.syncInfo['rampFreq'] = fitSine['freq']
+        self.syncInfo['fractionOffset'] = fractionOffset
+        self.syncInfo['rCos'] = np.cos(2*np.pi*ts*fitSine['freq'])
+        self.syncInfo['rSin'] = np.sin(2*np.pi*ts*fitSine['freq'])
                                                 
         if doPlot:
             import matplotlib.pyplot as plt
@@ -138,24 +136,35 @@ class FluxRamp():
             ax[1].plot(t,p, label="all")
             ax[1].plot(ts,ps, label="selected")
             ax[1].plot(ts, fitSine['fitfunc'](ts), color='r',alpha=0.7, label='fit sine')
+            ax[1].axvline(at[arg0],c='r',linestyle=":")
+            ax[1].axvline(at[arg1],c='r',linestyle=":")
+                          
             ax[1].set_ylabel('$\Theta$')
             ax[1].legend()
             ax[0].set_title("%s fracOffset=%.4f fRamp=%.1f Hz"%(self.name, fractionOffset, fitSine['freq']))
             ax[1].set_xlabel("time-syncTimeFit (sec)")
             plt.savefig("%s-phiPrepare.png"%self.name,dpi=600)
 
-    def getPhi(self, channel, ist, fraction = 0.8):
+    def getPhi(self, channel, ist, fraction = 0.8, doPlot=False):
         tpt,tp,dt,tMin,tMax,stf = self.getTrace(channel, ist, fraction)
-        num = (tp*(self.syncInfo[channel]['rCos'][:len(tp)])).sum()
-        den = (tp*(self.syncInfo[channel]['rSin'][:len(tp)])).sum()
+        num = (tp*(self.syncInfo['rCos'][:len(tp)])).sum()
+        den = (tp*(self.syncInfo['rSin'][:len(tp)])).sum()
         phi = np.arctan2(num,den)
+        if doPlot:
+            import matplotlib.pyplot as plt
+            fig,ax = plt.subplots(2,1,sharex=True)
+            ax[0].plot(self.syncInfo['rCos'][:len(tp)], label="cos")
+            ax[0].plot(self.syncInfo['rSin'][:len(tp)], label="sin")
+            ax[0].legend()
+            ax[1].plot(tp)
+            ax[0].set_title("channel=%d ist=%d fraction=%d phi=%f"%(channel,ist,fraction,phi))
         return phi
 
     def getTrace(self, channel, ist, fraction = 0.8, fractionOffset=None):
         syncInfo = self.syncInfo
         if fractionOffset is None:
-            fractionOffset = syncInfo[channel]['fractionOffset']
-        syncTimesFit = syncInfo[channel]['syncTimesFit']
+            fractionOffset = syncInfo['fractionOffset']
+        syncTimesFit = syncInfo['syncTimesFit']
         dt = syncTimesFit[1]-syncTimesFit[0]
         phaseTimes = syncInfo[channel]['phaseTimes']
         phases = syncInfo[channel]['phases']
@@ -165,8 +174,50 @@ class FluxRamp():
         tracePhaseTimes = phaseTimes[inds]-syncTimesFit[ist]
         tracePhases = phases[inds]
         return tracePhaseTimes,tracePhases, dt, tMin, tMax, syncTimesFit[ist]
+    
+    def getPhis(self, channel, nst="all", fraction=0.8, fractionOffset=None,
+                istPlot = -1):
+        syncInfo = self.syncInfo
+        if fractionOffset is None:
+            fractionOffset = syncInfo['fractionOffset']
+            syncTimesFit = syncInfo['syncTimesFit']
+            dt = syncTimesFit[1]-syncTimesFit[0]
+            phaseTimes = syncInfo[channel]['phaseTimes']
+            phases = syncInfo[channel]['phases']
+            tMin = syncTimesFit[1] - fraction*dt/2.0 + fractionOffset*dt
+            tMax = syncTimesFit[1] + fraction*dt/2.0 + fractionOffset*dt
+            inds = np.where( (phaseTimes > tMin) & (phaseTimes < tMax) )[0]
+            ind0_1 = inds[0]
+            ind1_1 = inds[-1]+1
+            ind = np.searchsorted(phaseTimes,syncTimesFit[1])
+            dInd0 = ind0_1-ind
+            dInd1 = ind1_1-ind
+            if nst == "all":
+                nst = len(self.syncInfo['syncTimes'])
+            phis = np.empty(nst-1)
+            rampFreq = self.syncInfo['rampFreq']
+            rCos = self.syncInfo['rCos'][:(ind1_1-ind0_1)]
+            rSin = self.syncInfo['rSin'][:(ind1_1-ind0_1)]
+            for ist in range(1,nst):
+                i0 = np.searchsorted(phaseTimes,syncTimesFit[ist])
+                ind0 = dInd0 + i0
+                ind1 = dInd1 + i0
+                if ist%5000 == 1:
+                    print ist, nst,
+                tp = phases[ind0:ind1]
+                num = (tp*rCos).sum()
+                den = (tp*rSin).sum()
+                phis[ist-1] = np.arctan2(num,den)
+                if ist == istPlot:
+                    import matplotlib.pyplot as plt
+                    fig,ax = plt.subplots(2,1,sharex=True)
+                    ax[0].plot(rCos, label="cos")
+                    ax[0].plot(rSin, label="sin")
+                    ax[0].legend()
+                    ax[1].plot(tp)
+                    ax[0].set_title("channel=%d ist=%d fraction=%d phi=%f"%(channel,ist,fraction,phis[ist-1]))
+            return phis
 
-                                            
 def _ltoa(l):
     n = 0
     for a in l: n += len(a)
