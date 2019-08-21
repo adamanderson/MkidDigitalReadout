@@ -97,7 +97,7 @@ class FluxRamp():
         plt.title("%s   channel=%d  n=%d"%(self.name, channel, n))
         plt.savefig("%s-residualVsTSync.png"%self.name,dpi=600)
    
-    def phiPrepare(self, channel, ist, doPlot=True):
+    def phiPrepare(self, channel, ist, doPlot=True, fractionOffset=None):
         """
         Usually run interactively, to set and/or check parameters for
         measuring phi for each time sample in this data set
@@ -114,7 +114,8 @@ class FluxRamp():
         arg1 = np.argmax(dp[ndp//2:])+ndp//2
         offset0 = at[arg0] + 1/syncFreq/2.
         offset1 = at[arg1] - 1/syncFreq/2.
-        fractionOffset = 0.5*(offset0+offset1)*syncFreq
+        if fractionOffset is None:
+            fractionOffset = 0.5*(offset0+offset1)*syncFreq
         ts, ps, dts, tMins, tMaxs, stfs = self.getTrace(channel, ist, 
                                                         fraction=0.95, fractionOffset=fractionOffset)
         fitSine = fit_sin(ts,ps)
